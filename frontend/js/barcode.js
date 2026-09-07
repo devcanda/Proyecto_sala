@@ -17,10 +17,23 @@
   const input = document.getElementById("barcode-input");
   let modalAbierto = false;
 
+  // Campos editables (inputs de los formularios de Productos, Inventario,
+  // Configuracion, el buscador de Retail, etc.) donde el usuario esta
+  // escribiendo de verdad: nunca robarles el foco. Esta funcion asumia
+  // originalmente que el resto de la UI eran solo botones/tarjetas (sin
+  // texto que tipear), lo cual dejo de ser cierto en cuanto se agregaron
+  // formularios reales fuera de la pantalla de Venta.
+  function esCampoEditable(el) {
+    if (!el || el === input) return false;
+    const tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+  }
+
   function enfocar() {
-    if (!modalAbierto && document.activeElement !== input) {
-      input.focus();
-    }
+    if (modalAbierto) return;
+    if (document.activeElement === input) return;
+    if (esCampoEditable(document.activeElement)) return;
+    input.focus();
   }
 
   // Reintenta el foco de forma agresiva pero barata: cubre casos como un

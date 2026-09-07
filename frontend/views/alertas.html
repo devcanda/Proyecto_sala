@@ -1,0 +1,25 @@
+<!--
+  views/alertas.html
+  ---------------------
+  Seccion de administracion: semaforizacion de vencimientos a pantalla
+  completa (documento maestro, seccion 5-A). Consume
+  GET /alertas/vencimientos. Fragmento inyectado en #app-view.
+-->
+<section class="pos-alertas">
+  <div class="panel-admin">
+    <h3>Lotes proximos a vencer</h3>
+    <table class="tabla-admin">
+      <thead>
+        <tr>
+          <th>Nivel</th>
+          <th>Producto</th>
+          <th>Cantidad actual</th>
+          <th>Vencimiento</th>
+          <th>Dias restantes</th>
+        </tr>
+      </thead>
+      <tbody id="alertas-tabla-body"></tbody>
+    </table>
+    <p id="alertas-vacio" class="hint" hidden>No hay lotes en alerta por vencer.</p>
+  </div>
+</section>

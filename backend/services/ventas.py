@@ -63,7 +63,13 @@ def descontar_inventario_por_venta(db: Session, producto: Producto, cantidad: De
     """
     Punto de entrada unico para descontar inventario de una linea de venta.
     Expande recursivamente si el producto es un escandallo (COMPUESTO).
+
+    Un producto marcado `es_servicio=True` no tiene inventario fisico (ej.
+    una instalacion, un domicilio): vender un servicio no descuenta nada.
     """
+    if producto.es_servicio:
+        return
+
     if producto.tipo == TipoProducto.COMPUESTO:
         for ingrediente in producto.ingredientes:
             cantidad_insumo = ingrediente.cantidad_requerida * cantidad

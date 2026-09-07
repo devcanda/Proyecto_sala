@@ -1,0 +1,195 @@
+<!--
+  views/productos.html
+  ----------------------
+  Seccion de administracion: catalogo de productos. Permite crear y editar
+  productos (con todos sus datos comerciales: precios, proveedor, imagen,
+  notas), y para los de tipo "compuesto" (escandallos) gestionar su receta
+  de insumos. Fragmento inyectado en #app-view por app.js.
+-->
+<section class="pos-productos">
+  <div class="panel-admin">
+    <h3 id="productos-form-titulo">Nuevo producto</h3>
+    <form id="form-producto" class="form-inline">
+      <input type="hidden" id="producto-id" />
+
+      <div class="form-seccion-titulo">Datos generales</div>
+      <div class="campo">
+        <label for="producto-nombre">Nombre</label>
+        <input type="text" id="producto-nombre" required />
+      </div>
+      <div class="campo">
+        <label for="producto-codigo">Codigo (SKU interno)</label>
+        <input type="text" id="producto-codigo" placeholder="ej. SKU-001" />
+      </div>
+      <div class="campo">
+        <label for="producto-codigo-barras">Codigo de barras</label>
+        <input type="text" id="producto-codigo-barras" />
+      </div>
+      <div class="campo">
+        <label>&nbsp;</label>
+        <button type="button" id="btn-generar-codigo-barras" class="btn-secundario">Generar</button>
+      </div>
+      <div class="campo">
+        <label for="producto-unidad-medida">Unidad de medida</label>
+        <select id="producto-unidad-medida">
+          <option value="unidad">Unidad</option>
+          <option value="kg">Kg</option>
+          <option value="gramo">Gramo</option>
+          <option value="litro">Litro</option>
+          <option value="mililitro">Mililitro</option>
+          <option value="libra">Libra</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="producto-grupo">Grupo</label>
+        <input type="text" id="producto-grupo" list="grupos-existentes" placeholder="ej. Lacteos" />
+        <datalist id="grupos-existentes"></datalist>
+      </div>
+      <div class="campo">
+        <label for="producto-tipo">Tipo</label>
+        <select id="producto-tipo">
+          <option value="unidad">Unidad</option>
+          <option value="peso">Peso</option>
+          <option value="compuesto">Compuesto (escandallo)</option>
+        </select>
+      </div>
+
+      <div class="form-seccion-titulo">Precios</div>
+      <div class="campo">
+        <label for="producto-costo">Costo</label>
+        <input type="text" id="producto-costo" class="input-precio" />
+      </div>
+      <div class="campo">
+        <label for="producto-precio">Precio de venta</label>
+        <input type="text" id="producto-precio" class="input-precio" required />
+      </div>
+      <div class="campo">
+        <label for="producto-margen">Margen de ganancia</label>
+        <input type="text" id="producto-margen" readonly placeholder="--" />
+      </div>
+      <div class="campo">
+        <label class="switch">
+          <input type="checkbox" id="producto-incluye-impuesto" />
+          <span class="switch__track"><span class="switch__thumb"></span></span>
+          <span class="switch__label">Incluye impuesto</span>
+        </label>
+      </div>
+
+      <div class="form-seccion-titulo campo-solo-creacion">Inventario inicial (solo al crear)</div>
+      <div class="campo campo-solo-creacion">
+        <label for="producto-cantidad-inicial">Cantidad inicial</label>
+        <input type="number" id="producto-cantidad-inicial" step="0.001" min="0" placeholder="0" />
+      </div>
+      <div class="campo campo-solo-creacion">
+        <label for="producto-cantidad-inicial-vencimiento">Vencimiento (opcional)</label>
+        <input type="date" id="producto-cantidad-inicial-vencimiento" />
+      </div>
+      <p class="hint campo campo--ancho campo-solo-creacion">
+        Si indicas una cantidad, se registra como el primer lote de este producto usando el Costo de arriba.
+        Para ingresos de mercancía posteriores, usa la sección Inventario.
+      </p>
+
+      <div class="form-seccion-titulo">Inventario y proveedor</div>
+      <div class="campo">
+        <label for="producto-proveedor">Proveedor</label>
+        <select id="producto-proveedor">
+          <option value="">(ninguno)</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="producto-impresora">Impresora destino</label>
+        <select id="producto-impresora">
+          <option value="">(ninguna)</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label class="switch">
+          <input type="checkbox" id="producto-activo" checked />
+          <span class="switch__track"><span class="switch__thumb"></span></span>
+          <span class="switch__label">Activo</span>
+        </label>
+      </div>
+      <div class="campo">
+        <label class="switch">
+          <input type="checkbox" id="producto-es-servicio" />
+          <span class="switch__track"><span class="switch__thumb"></span></span>
+          <span class="switch__label">Es servicio</span>
+        </label>
+      </div>
+      <div class="campo">
+        <label class="switch">
+          <input type="checkbox" id="producto-stock-bajo-activo" />
+          <span class="switch__track"><span class="switch__thumb"></span></span>
+          <span class="switch__label">Marcar stock bajo</span>
+        </label>
+      </div>
+      <div class="campo" id="campo-stock-bajo-umbral" hidden>
+        <label for="producto-stock-bajo-umbral">Stock bajo si es menor a</label>
+        <input type="number" id="producto-stock-bajo-umbral" step="0.001" min="0" />
+      </div>
+
+      <div class="form-seccion-titulo">Descripcion</div>
+      <div class="campo campo--ancho">
+        <label for="producto-descripcion">Descripcion</label>
+        <textarea id="producto-descripcion" rows="3"></textarea>
+      </div>
+
+      <div class="form-seccion-titulo">Imagen</div>
+      <div class="campo">
+        <img id="producto-imagen-preview" class="imagen-preview" alt="Vista previa del producto" hidden />
+      </div>
+      <div class="campo">
+        <label for="producto-imagen-input">Subir imagen</label>
+        <input type="file" id="producto-imagen-input" accept="image/*" />
+        <p class="hint" id="producto-imagen-hint" hidden>Guarda el producto primero para poder subirle una imagen.</p>
+      </div>
+
+      <button type="submit" class="btn-primario">Guardar</button>
+      <button type="button" id="btn-cancelar-edicion" class="btn-secundario" hidden>Cancelar edicion</button>
+    </form>
+  </div>
+
+  <div class="panel-admin" id="panel-notas" hidden>
+    <h3>Notas de <span id="notas-producto-nombre"></span></h3>
+    <ul id="notas-lista" class="lista-simple"></ul>
+    <form id="form-nota" class="form-inline">
+      <div class="campo campo--ancho">
+        <label for="nota-texto">Nueva nota</label>
+        <input type="text" id="nota-texto" required />
+      </div>
+      <button type="submit" class="btn-primario">Agregar nota</button>
+    </form>
+  </div>
+
+  <div class="panel-admin" id="panel-receta" hidden>
+    <h3>Receta de <span id="receta-producto-nombre"></span></h3>
+    <ul id="receta-lista" class="lista-simple"></ul>
+    <form id="form-receta" class="form-inline">
+      <div class="campo">
+        <label for="receta-insumo">Insumo</label>
+        <select id="receta-insumo"></select>
+      </div>
+      <div class="campo">
+        <label for="receta-cantidad">Cantidad requerida</label>
+        <input type="number" id="receta-cantidad" step="0.001" min="0" required />
+      </div>
+      <button type="submit" class="btn-primario">Agregar a la receta</button>
+    </form>
+  </div>
+
+  <div class="panel-admin">
+    <h3>Catalogo</h3>
+    <table class="tabla-admin">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Tipo</th>
+          <th>Precio</th>
+          <th>Grupo</th>
+          <th>Codigo de barras</th>
+        </tr>
+      </thead>
+      <tbody id="productos-tabla-body"></tbody>
+    </table>
+  </div>
+</section>

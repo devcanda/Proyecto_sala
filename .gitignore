@@ -11,6 +11,9 @@ backend/data/*.db
 backend/data/*.sqlite3
 *.db-journal
 
+# Imagenes de producto subidas por el usuario (backend/routers/inv_router.py)
+backend/data/imagenes_productos/
+
 # Variables de entorno / secretos
 .env
 .env.*

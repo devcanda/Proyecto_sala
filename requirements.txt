@@ -13,6 +13,9 @@ psycopg2-binary==2.9.9   # Driver PostgreSQL (modo Red LAN)
 # --- Hardware (impresoras térmicas / cajón monedero) ---
 python-escpos==3.1
 
+# --- Imagenes de producto (redimensionado automatico) ---
+Pillow==10.4.0
+
 # --- Utilidades ---
 python-dotenv==1.0.1
 

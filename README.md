@@ -90,22 +90,30 @@ mismo backend y catálogo de productos.
 │   ├── database.py                 # Conexión SQLAlchemy (SQLite/PostgreSQL)
 │   ├── schemas.py                   # DTOs Pydantic (contrato de la API)
 │   ├── models/
-│   │   ├── inventory.py             # Producto, RecetaIngrediente, LoteInventario
-│   │   └── pos.py                   # Mesa, Orden, OrdenDetalle
+│   │   ├── inventory.py             # Producto, Proveedor, NotaProducto, RecetaIngrediente, LoteInventario
+│   │   ├── pos.py                   # Mesa, Orden, OrdenDetalle
+│   │   └── config.py                 # ConfiguracionNegocio, Impresora
 │   ├── routers/
 │   │   ├── pos_router.py            # Ordenes, mesas, cobro
-│   │   ├── inv_router.py            # Catálogo y lotes de inventario
-│   │   └── alert_router.py          # Semaforización de vencimientos
+│   │   ├── inv_router.py            # Catálogo, lotes, proveedores, notas, imagen de producto
+│   │   ├── alert_router.py          # Semaforización de vencimientos
+│   │   └── config_router.py          # Datos del negocio, impresoras
 │   ├── services/
-│   │   ├── ventas.py                 # FIFO + expansión de escandallos
+│   │   ├── ventas.py                 # FIFO + expansión de escandallos (salta si es_servicio)
 │   │   ├── hardware/printing.py      # Impresión térmica / cajón monedero
 │   │   └── ai/                       # Reservado para modelos predictivos
-│   └── data/                         # SQLite vive aquí (ignorado por git)
+│   └── data/
+│       ├── *.db                      # SQLite (ignorado por git)
+│       └── imagenes_productos/       # Imagenes subidas, servidas en /media (ignorado por git)
 ├── frontend/
-│   ├── index.html                    # Shell: barra superior + input de barras
+│   ├── index.html                    # Shell: sidebar (Venta / Administración > submenú) + input de barras
 │   ├── views/
-│   │   ├── pos_retail.html           # Fragmento: grilla de productos + ticket
-│   │   └── pos_hospitalidad.html     # Fragmento: mapa de mesas + cuenta
+│   │   ├── pos_retail.html           # Venta > Retail: estilo Aronium (ticket + panel de acciones + grilla)
+│   │   ├── pos_hospitalidad.html     # Venta > Hospitalidad: mapa de mesas + cuenta
+│   │   ├── productos.html            # Administración > Productos: formulario completo + receta + notas
+│   │   ├── inventario.html           # Administración > Inventario: lotes por producto + alta de lote
+│   │   ├── alertas.html              # Administración > Alertas: semaforo de vencimientos
+│   │   └── configuracion.html        # Administración > Configuración: negocio, impresoras, proveedores
 │   ├── css/style.css
 │   └── js/
 │       ├── api.js                    # Cliente fetch hacia el backend
@@ -124,12 +132,16 @@ Definido en `backend/models/`. Resumen de tablas y su porqué:
 
 | Tabla | Campos clave | Notas |
 |---|---|---|
-| `productos` | `codigo_barras`, `tipo` (`unidad`/`peso`/`compuesto`), `precio_venta`, `impresora_destino` | Catálogo central; `impresora_destino` habilita el ruteo de comandas en Hospitalidad |
+| `productos` | `codigo_barras`, `codigo` (SKU manual), `tipo` (`unidad`/`peso`/`compuesto`), `unidad_medida`, `precio_venta`, `costo`, `incluye_impuesto`, `grupo`, `descripcion`, `es_servicio`, `proveedor_id`, `stock_bajo_activo`/`stock_bajo_umbral`, `imagen`, `impresora_destino` | Catálogo central; `grupo` es texto libre (no una tabla aparte, antes se llamaba `categoria`) para filtrar la grilla de Retail; `es_servicio=True` salta el descuento de inventario al vender (`services/ventas.py`); `imagen` solo se llena vía `POST /inventario/productos/{id}/imagen`, nunca por create/update directo |
+| `proveedores` | `nombre` | Catálogo mínimo, gestionado en Configuración |
+| `notas_producto` | `producto_id`, `texto`, `creado_en` | Notas libres agregables/eliminables por producto |
 | `recetas_ingredientes` | `producto_compuesto_id`, `insumo_id`, `cantidad_requerida` | Tabla pivote de escandallos (ej. 1 Mojito = 50ml ron + azúcar + limón + 1 vaso) |
 | `lotes_inventario` | `producto_id`, `cantidad_actual`, `costo_adquisicion`, `fecha_ingreso`, `fecha_vencimiento` | Existencias físicas por lote, base del FIFO y de la semaforización |
 | `mesas` | `nombre`, `estado` (`libre`/`ocupada`/`reservada`) | Solo aplica en modo Hospitalidad |
 | `ordenes` | `tipo_orden` (`directa`/`mesa`), `mesa_id`, `estado` (`abierta`/`pagada`/`cancelada`) | Cabecera del ticket o cuenta |
 | `orden_detalles` | `cantidad` (decimal, admite gramos), `precio_unitario_historico` | Precio congelado al momento de la venta: base del futuro cálculo de utilidad bruta |
+| `configuracion_negocio` | `nombre_negocio`, `nit`, `direccion`, `telefono` | Singleton (una sola fila, id=1) |
+| `impresoras` | `nombre` | Catálogo mínimo, alimenta el selector "Impresora destino" de Productos |
 
 **Relación con el Módulo Contable (fase posterior):** cada `LoteInventario`
 guarda su `costo_adquisicion` y cada `OrdenDetalle` guarda su
@@ -177,7 +189,29 @@ nunca necesite tocar el mouse. Soporta el formato de multiplicador rápido
 ### D. Flujo de mesas (Hospitalidad)
 `GET /pos/mesas/{id}/orden-abierta` permite retomar la cuenta abierta de
 una mesa ya ocupada en vez de crear una nueva orden duplicada; al pagar
-(`POST /pos/ordenes/{id}/pagar`) la mesa vuelve a estado `libre`.
+(`POST /pos/ordenes/{id}/pagar`) la mesa vuelve a estado `libre`. Las mesas
+se crean desde la propia grilla de Hospitalidad (tarjeta "+ Nueva mesa"),
+vía `POST /pos/mesas`.
+
+### E. Navegación por secciones (`frontend/js/app.js`, `frontend/index.html`)
+El shell usa una barra lateral (inspirada en Aronium) con 4 secciones:
+**Venta** (la pantalla de caja, con su propio sub-modo Retail/Hospitalidad
+tal como ya existía), **Productos** (catálogo + editor de receta de
+escandallos), **Inventario** (lotes por producto + alta de lote) y
+**Alertas** (semáforo de vencimientos a pantalla completa). Cambiar de
+sección nunca resetea una venta en curso (`state.ordenActual`); solo
+cambiar de sub-modo Retail↔Hospitalidad lo hace, como antes.
+
+**Gotcha de CSS encontrado y corregido:** un elemento con el atributo
+`hidden` deja de ocultarse si CUALQUIER regla de tu propio stylesheet le
+fija `display` (ej. `.mi-clase { display: flex }`), sin importar
+especificidad — el origen "autor" de la cascada le gana siempre al
+"user-agent" que trae `[hidden] { display: none }`. Esto rompía
+silenciosamente la grilla de mesas (`.pos-hospitalidad__cuenta` se veía
+siempre superpuesta) y el sub-menú Retail/Hospitalidad (seguía visible en
+Productos/Inventario/Alertas). Se corrigió agregando `:not([hidden])` a
+esos selectores (`.topbar`, `.form-inline`, `.pos-hospitalidad__cuenta`)
+en `frontend/css/style.css`.
 
 ## 7. Cómo correr el proyecto
 
@@ -329,11 +363,319 @@ posterior (ver Backlog).
   probados contra una cuenta real (requieren credenciales propias del
   cliente/desarrollador); ver Backlog para automatizarlas.
 
+### 2026-09-07 — Navegación real por secciones (estilo Aronium) + endpoints faltantes
+- El frontend solo exponía la pantalla de venta: no había forma de crear
+  productos, lotes, mesas ni ver alertas desde la UI (dos huecos eran
+  bloqueos reales, no solo de UX: no existía `POST /pos/mesas` — por eso
+  la grilla de Hospitalidad se veía rota/vacía en las capturas que trajo
+  el desarrollador — ni ningún endpoint para definir recetas de
+  escandallo). Se agregó, siguiendo el mismo patrón de los routers
+  existentes: `POST /pos/mesas`, `PUT /inventario/productos/{id}`,
+  `GET`/`POST /inventario/productos/{id}/receta` y
+  `DELETE /inventario/recetas/{id}` (ver schemas nuevos en
+  `backend/schemas.py`: `ProductoUpdate`, `RecetaIngredienteCreate/Out`,
+  `MesaCreate`).
+- El frontend se reestructuró a una barra lateral (Venta / Productos /
+  Inventario / Alertas), inspirada explícitamente en Aronium a pedido del
+  desarrollador, con 3 vistas nuevas (`productos.html`, `inventario.html`,
+  `alertas.html`) y una tarjeta "+ Nueva mesa" en Hospitalidad. Ver detalle
+  en la sección 6-E.
+- Se encontró y corrigió un bug de CSS preexistente (no introducido en
+  este cambio, pero que se manifestaba en el mismo flujo de mesas que el
+  desarrollador reportó rota): reglas de `display` en `style.css` vencían
+  al atributo `[hidden]` por reglas de cascada (autor > user-agent),
+  dejando la cuenta de una mesa siempre visible encima de la grilla. Ver
+  nota técnica en 6-E.
+- Verificado de punta a punta con un navegador headless (Playwright,
+  instalado ad-hoc en el scratchpad de la sesión, no committeado al
+  repo): crear producto, editar producto compuesto y definirle receta,
+  registrar lote y verlo en Alertas con su badge de color, crear mesa
+  nueva y vender sobre ella. Cero errores de consola en las 4 secciones.
+
+### 2026-09-07 — Buscador y categorías en la grilla de Retail
+- A pedido explícito del desarrollador, se priorizó pulir primero la
+  pantalla de Retail (por encima de Hospitalidad) con un buscador por
+  nombre/código y filtro por categoría, ya que el catálogo real crecerá
+  más allá de lo manejable en una grilla plana sin filtrar.
+- Se agregó `categoria` a `productos` como texto libre (con autocompletado
+  vía `<datalist>` en el formulario, para evitar categorías duplicadas por
+  typos) en vez de una tabla `categorias` aparte, siguiendo el mismo
+  patrón ya usado por `impresora_destino`: mantiene el esquema simple sin
+  necesitar un CRUD propio de categorías.
+- El buscador/filtro es client-side sobre `state.productos` (ya cargado
+  en memoria), sin nuevo endpoint de búsqueda: el catálogo esperado para
+  un solo negocio no justifica paginación ni búsqueda en el servidor.
+- Deliberadamente **no** se tocó Hospitalidad en este cambio: la grilla de
+  productos dentro de la cuenta de una mesa reutiliza la misma función de
+  render, pero sigue mostrando el catálogo completo sin filtrar porque esa
+  vista no tiene los controles de buscador/categoría (ver
+  `frontend/js/app.js`, función `renderProductosGrid`).
+
+### 2026-09-07 — Reskin oscuro + ticket como tabla (inspirado en la pantalla de venta de Aronium)
+- El desarrollador compartió una captura de la pantalla de venta real de
+  Aronium (tema oscuro, ticket como tabla con columnas Nombre/Cantidad/
+  Precio/Total, panel lateral de acciones con atajos F2-F12, botones de
+  método de pago, desglose Subtotal/Impuestos/Total) y pidió adaptarla
+  "paso a paso". Se acordó como primer paso, de varios: tema oscuro +
+  ticket como tabla, dejando el resto (panel de atajos, métodos de pago,
+  impuestos) para pasos posteriores.
+- Paleta oscura en `:root` (`frontend/css/style.css`). Nota para futuras
+  ediciones: `--color-primary-dark` invirtió su rol tonal respecto al
+  tema claro original (antes más oscuro que `--color-primary` para texto
+  legible sobre blanco; ahora más claro, para texto legible sobre fondo
+  oscuro) — se mantuvo el nombre de la variable para no tocar cada
+  selector que ya la usaba.
+- `#ticket-lineas` pasó de `<ul>`/`<li>` a `<table>` (`.tabla-ticket`) con
+  encabezado Nombre/Cantidad/Precio/Total y un mensaje de estado vacío
+  ("No hay artículos..."), en `pos_retail.html` y `pos_hospitalidad.html`
+  (comparten la misma estructura y la misma función `actualizarTicket()`
+  en `app.js`, así que se actualizaron los dos).
+- Efecto secundario esperado: el reskin es global (aplica también a
+  Hospitalidad y a las pantallas de administración), ya que es un cambio
+  de variables de tema, no de una vista puntual.
+
+### 2026-09-07 — Reconciliación del layout de Retail estilo Aronium
+- El desarrollador intentó adaptar a mano `pos_retail.html`/`style.css`
+  siguiendo la captura de Aronium (buscador arriba, ticket amplio, panel
+  de acciones a la derecha con atajos F2-F12), pero reportó que "no quedó
+  armónica" y que las funcionalidades existentes (grilla de productos con
+  buscador/categorías) dejaron de servir. Causas encontradas:
+  1. El nuevo CSS usaba colores fijos (`#2c2c2c`, `#333`, etc.) en vez de
+     las variables de `:root`, por lo que no coincidía con la paleta del
+     resto de la app (Productos/Inventario/Alertas) al navegar entre
+     secciones.
+  2. El HTML nuevo eliminó `#productos-grid` y `#categorias-tabs` por
+     completo: el buscador seguía en el DOM pero ya no tenía nada que
+     filtrar.
+  3. El mensaje de vacío se renombró a `#ticket-vacio-msg`, pero
+     `app.js` seguía buscando `#ticket-vacio` — nunca se ocultaba.
+- Se confirmó con el desarrollador que la grilla de productos clicables
+  se debía **conservar** (a diferencia de la Aronium real, que no la
+  tiene) por ser mejor para un mostrador táctil. Se reconstruyó
+  `pos_retail.html` con: buscador arriba, ticket + totales (Subtotal/
+  Impuestos aún estáticos, no calculados) + la grilla con categorías
+  debajo, y el panel de acciones a la derecha.
+- Se reescribió el bloque CSS del panel de acciones para usar las
+  variables de tema existentes (integración visual con el resto de la
+  app) y se quitó el logo/marca de "aronium" que había quedado en el
+  diseño de referencia (no corresponde dejar la marca de un producto de
+  otra empresa en este proyecto).
+- **Solo están conectados de verdad**: el buscador+categorías (ya
+  existían), la grilla de productos, y el botón "F10 Pago" (=
+  `#btn-cobrar`, cobra la orden). El resto de botones del panel
+  (Eliminar, F3 Buscar, F4 Cantidad, F8 Nueva venta, Cash/Card/Check,
+  Descuento, Price, Customer, Guardar venta, Reembolso, Bloquear,
+  Transferir, Anular orden) son decorativos por ahora — matriz de
+  próximos pasos de esta adaptación, no de este arreglo puntual.
+- Verificado con navegador headless en Retail (vacío, con items, filtro
+  de categoría) y en Hospitalidad (crear mesa, vender), sin errores de
+  consola.
+
+### 2026-09-07 — Formato numérico: punto de miles, coma decimal
+- A pedido del desarrollador, todos los valores numéricos que se
+  **muestran** (precios, cantidades, costos) usan la convención
+  latinoamericana: punto para miles, coma para decimales (ej.
+  `$1.234,50`, cantidad `2.994`), en vez del `1234.50` que traía por
+  defecto `Number.prototype.toFixed()`.
+- Se centralizó en `frontend/js/app.js`: `formatearMoneda(valor)` (2
+  decimales fijos, con `$`) y `formatearCantidad(valor)` (hasta 3
+  decimales, sin ceros de relleno — así "1" sigue viéndose como "1" y no
+  como "1,000"). Reemplazó a todos los `` `$${Number(x).toFixed(2)}` ``
+  dispersos por Retail, Hospitalidad, Productos, Inventario y Alertas.
+- **Los `<input type="number">` de los formularios NO se tocaron**: ese
+  tipo de input siempre usa punto decimal internamente (`.value` en el
+  DOM), sin importar el idioma — es una limitación del propio tipo de
+  campo HTML, no algo que esta app controle. Solo cambió lo que se
+  **muestra** (grillas, tickets, tablas); lo que se **tipea** sigue el
+  estándar del navegador. (Nota: en esta sesión, Chromium visualmente
+  mostraba el input ya con coma decimal por la configuración regional del
+  navegador — es un detalle del navegador del desarrollador, no algo que
+  el código fuerce.)
+
+### 2026-09-07 — Panel de Administración (submenú) + sección Configuración
+- El desarrollador pidió agrupar Productos/Inventario/Alertas bajo un
+  "panel de administración" propio, separado de Venta, ya que su
+  siguiente foco es mejorar la creación de productos. Se implementó como
+  un solo ítem de nivel superior "Administración" en la barra lateral que
+  despliega un submenú (Productos, Inventario, Alertas, Configuración) —
+  la alternativa de dejarlas sueltas y solo agregar Configuración se
+  descartó a favor de esta.
+- Nueva sección **Configuración** con dos partes, ambas con tablas nuevas
+  (`backend/models/config.py`, endpoints en `config_router.py`):
+  - `configuracion_negocio`: fila única (singleton, id=1) con nombre,
+    NIT, dirección y teléfono del negocio — pensada para cuando el
+    Módulo Contable necesite facturar (fase posterior).
+  - `impresoras`: catálogo de nombres de impresora, para que el campo
+    "Impresora destino" del formulario de Productos pase de texto libre
+    a un `<select>` poblado desde aquí (evita typos como "Barra" vs
+    "barra" que romperían el ruteo de comandas en Hospitalidad).
+- Gotcha de CSS que ya había aparecido antes con `[hidden]` (ver sección
+  6-E): el submenú (`#admin-submenu`) necesitó `:not([hidden])` en su
+  regla de `display: flex` por la misma razón — se aplicó desde el
+  principio esta vez, sin tener que redescubrir el bug.
+- Verificado con navegador headless: expandir/colapsar el submenú,
+  guardar datos del negocio y confirmar que persisten tras recargar la
+  página, agregar impresoras y verificar que el `<select>` de Productos
+  las lista correctamente.
+
+### 2026-09-07 — Formulario completo de registro de productos
+- A pedido del desarrollador (su prioridad declarada desde el principio),
+  se amplió el formulario de Productos con: código (SKU manual), botón
+  para generar un código de barras EAN-13 válido (con dígito verificador
+  calculado), unidad de medida (lista fija: Unidad/Kg/Gramo/Litro/
+  Mililitro/Libra, sin mostrarse junto a las cantidades ya construidas —
+  decisión explícita para no reabrir varias pantallas ya verificadas),
+  costo + margen de ganancia autocalculado (de solo lectura, nunca se
+  guarda en la base de datos), interruptor de impuesto incluido,
+  proveedor (catálogo nuevo, gestionado en Configuración igual que
+  Impresoras), interruptores de activo/es servicio/stock bajo (este
+  último con un campo de umbral que solo aparece si el interruptor está
+  encendido), descripción, notas eliminables, e imagen con recorte
+  automático a un cuadrado fijo sin importar el tamaño/proporción
+  original.
+- **`categoria` se renombró a `grupo`** en todo el stack (era el mismo
+  concepto, solo el nombre cambió, a pedido explícito del desarrollador).
+- **Nueva regla de negocio real, no solo de UI**: un producto marcado
+  "es servicio" no descuenta inventario al venderse
+  (`services/ventas.py`) — antes de este cambio, vender cualquier
+  producto sin lotes fallaba con 409 "stock insuficiente"; ahora eso
+  solo aplica a productos físicos.
+- **Imágenes**: se agregó Pillow (`ImageOps.fit`) y se montó `/media`
+  como archivos estáticos (`backend/data/imagenes_productos/`, ignorado
+  por git). Es la primera vez que el backend maneja `multipart/form-data`
+  (antes todo era JSON) y sirve archivos estáticos.
+- **Tercera vez en la sesión que aparece el mismo bug de CSS** (`[hidden]`
+  vencido por una regla de autor con `display`, ver 6-E): esta vez en
+  `.imagen-preview` y en `.form-inline .campo` (el campo de umbral de
+  stock bajo se veía siempre, sin importar el interruptor). Se corrigió
+  con `:not([hidden])` como las veces anteriores, y se hizo un barrido
+  sistemático de **todos** los elementos que se ocultan con `.hidden` en
+  `app.js` contra el CSS para no tener que descubrirlo una cuarta vez.
+- Verificado con navegador headless: producto con todos los campos
+  nuevos, margen recalculado en vivo (66,67% para costo 15.000 / precio
+  25.000), imagen 1200x300 subida y recortada a 400x400, dos notas
+  agregadas, y un producto "Domicilio" marcado como servicio vendido
+  desde Retail sin ningún lote creado (sin el 409 que sí ocurre con
+  productos físicos sin stock).
+
+### 2026-09-07 — Fix: `barcode.js` bloqueaba escribir en cualquier campo de texto
+- El desarrollador reportó que no podía escribir en las casillas del
+  formulario de Productos: el texto tecleado terminaba apareciendo en la
+  barra inferior (el campo oculto `#barcode-input`). Esto **no se
+  detectó en las pruebas anteriores de esta sesión** porque los scripts
+  usaban `page.fill()` (que asigna el valor directo vía CDP), mientras
+  que un click + tecleo real dispara una condición de carrera que
+  `page.fill()` no reproduce.
+- Causa raíz: `barcode.js` fue diseñado cuando la única pantalla era la
+  caja (sin campos de texto reales, solo tarjetas/botones), y reenfoca
+  `#barcode-input` ante cualquier clic fuera de él y cada 1.5s por
+  temporizador, sin excepción. Al agregar formularios de administración
+  reales, este comportamiento le quitaba el foco a cualquier input en
+  cuanto el usuario hacía clic para empezar a escribir.
+- Arreglo: `enfocar()` ahora respeta cualquier campo editable real
+  (`input`/`textarea`/`select`/`contenteditable`) que ya tenga el foco,
+  y solo reclama el foco cuando el elemento activo es algo no-editable
+  (una tarjeta, un botón, el body). Esto no requirió tocar `app.js`: es
+  un fix general en `barcode.js` que también resuelve el mismo problema
+  latente en el buscador de Retail (`#productos-buscador`), que tenía
+  exactamente el mismo bug sin que nadie lo hubiera notado.
+- Verificado con tecleo real simulado (click + `type()` letra por letra,
+  no `fill()`), incluyendo una pausa de 1.8s a mitad de la escritura
+  para confirmar que el temporizador tampoco interrumpe. Se confirmó
+  además que el escaneo real en Retail sigue funcionando: al hacer clic
+  en una tarjeta de producto (no editable), el foco vuelve correctamente
+  a `#barcode-input` para que un lector físico siga funcionando sin
+  tocar el mouse.
+
+### 2026-09-07 — Revisión de los cambios del desarrollador en Inventario
+- El desarrollador rediseñó `views/inventario.html` a un patrón
+  resumen→detalle (tabla con stock total por producto y pestañas de
+  grupo, que al hacer clic en una fila muestra los lotes de ese
+  producto), agregando `Producto.stock_total` (property en el modelo,
+  suma de `lote.cantidad_actual` de todos sus lotes) al esquema
+  `ProductoOut`. Se le pidió a Claude revisar y mejorar el resultado.
+- **Bug de rendimiento real encontrado**: `stock_total` se agregó al
+  `ProductoOut` compartido por *toda* la app (Retail, Hospitalidad,
+  Productos e Inventario cargan productos por el mismo
+  `GET /inventario/productos`), y al no tener precargada la relación
+  `lotes`, cada serialización disparaba una consulta SQL adicional
+  *por producto* (N+1) en cada pantalla, no solo en Inventario. Se
+  corrigió con `selectinload(Producto.lotes)` en
+  `listar_productos` (`inv_router.py`): 2 consultas totales sin
+  importar cuántos productos haya, en vez de N+1.
+- **Mejoras agregadas** a la vista nueva:
+  - Los productos marcados "es servicio" (ej. "Domicilio") ya no
+    aparecen en el resumen: mostrar "0" ahí se leía como agotado,
+    cuando en realidad el concepto de stock no les aplica.
+  - Se conectó `stock_bajo_activo`/`stock_bajo_umbral` (campos que ya
+    existían en el formulario de Productos pero no se usaban en
+    ningún lado) para mostrar un badge rojo "Stock bajo" cuando el
+    stock total cae al umbral definido — el propósito original de esos
+    campos, que había quedado sin conectar.
+  - Buscador por nombre/código/SKU, igual al patrón ya usado en Retail
+    y Productos (antes solo había pestañas de grupo).
+  - El encabezado de columna decía "Categoría" pero leía el campo
+    `grupo` (inconsistencia arrastrada del renombre `categoria`→`grupo`
+    de una sesión anterior); ahora dice "Grupo". La unidad de medida se
+    muestra capitalizada ("Kg" en vez de "kg").
+- Verificado con navegador headless: el resumen filtra por grupo y por
+  texto (con tecleo real, no `fill()`), el badge de stock bajo aparece
+  correctamente al fijarle un umbral a un producto en 0 stock, los
+  servicios quedan fuera del listado, y Retail/Productos/Hospitalidad
+  siguen funcionando igual tras el cambio de consulta compartido.
+
+### 2026-09-07 — Toast de confirmación + cantidad inicial al crear un producto
+- Se agregó un componente de notificación no bloqueante (`#toast` en
+  `index.html`, `mostrarToast(mensaje, tipo)` en `app.js`) que reemplaza
+  el silencio de antes al guardar un producto: aparece arriba a la
+  derecha y se oculta solo a los 3 segundos. Reutilizable para otros
+  formularios más adelante, aunque por ahora solo se conectó en
+  Productos (lo pedido).
+- **Cantidad inicial al crear**: se agregó un campo opcional "Cantidad
+  inicial" (+ vencimiento opcional) que solo aparece mientras el
+  producto NO tiene id todavía (crear, no editar). Si se llena, al
+  guardar se registra automáticamente el primer lote en Inventario
+  usando el `Costo` ya capturado en el formulario — sin tener que ir a
+  Inventario aparte solo para el ingreso inicial de stock. No se
+  agregó ningún endpoint nuevo: es el frontend encadenando
+  `crearProducto()` + `crearLote()`, ambos ya existentes.
+  - Si se indica cantidad pero no se llenó `Costo` (requerido por
+    `LoteInventario.costo_adquisicion`), el producto se guarda igual
+    pero se avisa con un toast de error que el lote no se pudo
+    registrar, en vez de fallar la operación completa o guardar un
+    costo incorrecto.
+  - Al editar un producto ya existente, la sección queda oculta: los
+    ingresos de mercadería posteriores siempre pasan por Inventario,
+    para no crear un lote de más cada vez que se guarda un cambio
+    menor (ej. corregir el nombre).
+- Verificado con navegador: crear con cantidad+costo registra el lote
+  (confirmado también contra `GET /inventario/lotes/producto/{id}`) y
+  muestra "Producto y lote inicial guardados correctamente"; crear sin
+  costo muestra el toast de error correspondiente; editar un producto
+  ya existente no duplica lotes y muestra el toast simple.
+
+### 2026-09-07 — Corregir un lote existente (no solo crear lotes nuevos)
+- El desarrollador notó que no había forma de corregir el stock de un
+  producto ya creado: solo se podían registrar lotes nuevos, nunca
+  ajustar uno existente (ej. tras un conteo físico o un error de
+  captura al ingresarlo).
+- Se agregó `PUT /inventario/lotes/{id}` (`LoteInventarioUpdate` en
+  `schemas.py`, todos los campos opcionales) y se conectó en
+  Inventario con el mismo patrón que ya usa Productos: clic en una
+  fila de la tabla de lotes carga su cantidad/costo/vencimiento en el
+  formulario de arriba, el botón cambia a "Guardar cambios" y aparece
+  "Cancelar edición"; al guardar, pisa ese lote en vez de crear uno
+  nuevo (sin esto, cada corrección habría inflado el historial FIFO
+  con lotes duplicados).
+- Verificado con navegador: editar la cantidad de un lote existente
+  (confirmado contra la API que sigue habiendo un solo lote, con el
+  valor corregido, no uno nuevo) y editar su fecha de vencimiento,
+  confirmando que se recarga correctamente en el campo `date` al
+  volver a hacer clic en la fila.
+
 ## 9. Backlog / próximas fases
 
 - [ ] Autenticación y roles de usuario (cajero, administrador).
-- [ ] Endpoints CRUD completos para `recetas_ingredientes` (hoy solo se
-      probó vía ORM directo; falta exponerlo en `inv_router.py`).
 - [ ] Migraciones versionadas (Alembic) para reemplazar el
       `create_all()` de desarrollo antes de ir a producción, tanto en LAN
       local como en nube.
@@ -353,3 +695,24 @@ posterior (ver Backlog).
 - [ ] Primeros modelos predictivos en `services/ai/` (demanda, sugerencia
       de reorden) apoyados en el histórico de `orden_detalles` y
       `lotes_inventario`.
+- [ ] Desactivar/eliminar mesas desde la UI (el campo `activo` ya existe
+      en el modelo; el de productos ya se resolvió con el interruptor
+      "Activo" del formulario — ver bitácora 2026-09-07).
+- [ ] Un Dashboard/portada con métricas (ventas del día, etc.), separado
+      de la sección Alertas que hoy solo muestra el semáforo.
+- [ ] Otros pendientes de pulir en Retail (discutidos con el desarrollador
+      2026-09-07, no priorizados aún): captura de cantidad/peso exacto al
+      hacer clic en un producto tipo "peso" (hoy suma "1" ambiguo),
+      edición del ticket en curso (quitar/ajustar una línea, cancelar la
+      venta sin cobrar), y cobro con efectivo + cálculo de cambio.
+- [ ] Panel de acciones de Retail (Eliminar, F3 Buscar, F4 Cantidad, F8
+      Nueva venta, Cash/Card/Check, Descuento, Price, Customer, Guardar
+      venta, Reembolso, Bloquear, Transferir, Anular orden): hoy son
+      botones decorativos sin lógica real, salvo el buscador y "F10 Pago".
+- [ ] Editar/eliminar proveedores e impresoras desde la UI (hoy Proveedores
+      solo permite listar/crear; Impresoras sí permite eliminar).
+- [ ] Eliminar la imagen de un producto desde la UI (hoy solo se puede
+      reemplazar subiendo una nueva).
+- [ ] Subtotal/Impuestos reales en el ticket de Retail (hoy son "$0,00"
+      estáticos): requiere definir de dónde sale la tasa de impuesto,
+      aprovechando el nuevo interruptor `incluye_impuesto` del producto.

@@ -1,0 +1,65 @@
+<!--
+  views/configuracion.html
+  ---------------------------
+  Seccion de administracion: datos del negocio (singleton, pensado para
+  cuando el Modulo Contable necesite facturar) y catalogo de impresoras
+  (alimenta el selector de "impresora destino" en el formulario de
+  productos, en vez de texto libre). Fragmento inyectado en #app-view.
+-->
+<section class="pos-configuracion">
+  <div class="panel-admin">
+    <h3>Datos del negocio</h3>
+    <form id="form-negocio" class="form-inline">
+      <div class="campo">
+        <label for="negocio-nombre">Nombre del negocio</label>
+        <input type="text" id="negocio-nombre" />
+      </div>
+      <div class="campo">
+        <label for="negocio-nit">NIT / identificación</label>
+        <input type="text" id="negocio-nit" />
+      </div>
+      <div class="campo">
+        <label for="negocio-direccion">Dirección</label>
+        <input type="text" id="negocio-direccion" />
+      </div>
+      <div class="campo">
+        <label for="negocio-telefono">Teléfono</label>
+        <input type="text" id="negocio-telefono" />
+      </div>
+      <button type="submit" class="btn-primario">Guardar</button>
+    </form>
+  </div>
+
+  <div class="panel-admin">
+    <h3>Impresoras</h3>
+    <p class="hint">
+      Estos nombres alimentan el selector "Impresora destino" del formulario
+      de productos (sección Productos), para el ruteo de comandas en modo
+      Hospitalidad.
+    </p>
+    <ul id="impresoras-lista" class="lista-simple"></ul>
+    <form id="form-impresora" class="form-inline">
+      <div class="campo">
+        <label for="impresora-nombre">Nombre</label>
+        <input type="text" id="impresora-nombre" placeholder="ej. Barra, Cocina" required />
+      </div>
+      <button type="submit" class="btn-primario">Agregar impresora</button>
+    </form>
+  </div>
+
+  <div class="panel-admin">
+    <h3>Proveedores</h3>
+    <p class="hint">
+      Alimentan el selector "Proveedor" del formulario de productos (sección
+      Productos).
+    </p>
+    <ul id="proveedores-lista" class="lista-simple"></ul>
+    <form id="form-proveedor" class="form-inline">
+      <div class="campo">
+        <label for="proveedor-nombre">Nombre</label>
+        <input type="text" id="proveedor-nombre" placeholder="ej. Distribuidora Andina" required />
+      </div>
+      <button type="submit" class="btn-primario">Agregar proveedor</button>
+    </form>
+  </div>
+</section>

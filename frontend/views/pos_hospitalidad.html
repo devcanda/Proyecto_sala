@@ -10,6 +10,19 @@
   <div class="pos-hospitalidad__mesas" id="vista-mesas">
     <h2>Mesas</h2>
     <div id="mesas-grid" class="mesas-grid"></div>
+
+    <form id="form-nueva-mesa" class="form-inline" style="margin-top: 1rem;" hidden>
+      <div class="campo">
+        <label for="nueva-mesa-nombre">Nombre</label>
+        <input type="text" id="nueva-mesa-nombre" placeholder="ej. Mesa 5" required />
+      </div>
+      <div class="campo">
+        <label for="nueva-mesa-capacidad">Capacidad</label>
+        <input type="number" id="nueva-mesa-capacidad" min="1" />
+      </div>
+      <button type="submit" class="btn-primario">Crear mesa</button>
+      <button type="button" id="btn-cancelar-nueva-mesa" class="btn-secundario">Cancelar</button>
+    </form>
   </div>
 
   <div class="pos-hospitalidad__cuenta" id="vista-cuenta" hidden>
@@ -26,7 +39,20 @@
         Escanea un codigo de barras, o escribe <code>5*codigo</code> para
         agregar 5 unidades de una vez.
       </p>
-      <ul id="ticket-lineas" class="ticket-lineas"></ul>
+      <div class="tabla-ticket-scroll">
+        <table class="tabla-ticket">
+          <thead>
+            <tr>
+              <th>Nombre del producto</th>
+              <th>Cantidad</th>
+              <th>Precio</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="ticket-lineas"></tbody>
+        </table>
+      </div>
+      <p id="ticket-vacio" class="hint">No hay artículos. Escanea un código de barras o haz clic en un producto.</p>
       <div class="ticket-total">
         Total: <strong id="ticket-total">$0.00</strong>
       </div>

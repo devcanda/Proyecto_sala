@@ -1,23 +1,31 @@
 /*
   style.css
   ----------
-  Estilo base inspirado en la limpieza de Aronium: alto contraste, botones
-  grandes pensados para pantallas tactiles/mostrador, y una jerarquia visual
-  simple para que el operario de caja encuentre lo que necesita sin pensar.
+  Tema oscuro inspirado en la pantalla de venta de Aronium: alto contraste,
+  botones grandes pensados para pantallas tactiles/mostrador, y una
+  jerarquia visual simple para que el operario de caja encuentre lo que
+  necesita sin pensar.
 */
 
 :root {
-  --color-bg: #f4f5f7;
-  --color-panel: #ffffff;
-  --color-primary: #1a73e8;
-  --color-primary-dark: #0f4fa3;
-  --color-text: #1f2430;
-  --color-text-muted: #6b7280;
-  --color-border: #e2e4e9;
+  --color-bg: #101317;
+  --color-panel: #1b1f26;
+  --color-hover: #262b34;
+  --color-primary: #3b82f6;
+  /* OJO: en el tema claro original esta variable era un azul MAS OSCURO
+     que --color-primary (para que el texto fuera legible sobre fondo
+     blanco). En el tema oscuro el rol es el mismo (texto/acento legible),
+     pero para lograrlo necesita ser un azul MAS CLARO que --color-primary,
+     ya que ahora el fondo es oscuro. El nombre de la variable se mantiene
+     para no tener que tocar cada selector que ya la usa. */
+  --color-primary-dark: #7fb8ff;
+  --color-text: #eef0f3;
+  --color-text-muted: #98a2b3;
+  --color-border: #2a2f38;
 
-  --color-rojo: #d64545;
-  --color-amarillo: #e2a63b;
-  --color-verde: #2fa365;
+  --color-rojo: #e5484d;
+  --color-amarillo: #f0b429;
+  --color-verde: #3ecf8e;
 
   --radius: 10px;
   --font-base: "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -36,23 +44,106 @@ html, body {
   color: var(--color-text);
 }
 
-.topbar {
+/* --- Layout general: sidebar + contenido --- */
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.25rem 1rem;
+  background: var(--color-panel);
+  border-right: 1px solid var(--color-border);
+}
+
+.sidebar__brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+.sidebar__brand span {
+  color: var(--color-text);
+  font-weight: 400;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.seccion-btn {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.seccion-btn:hover {
+  background: var(--color-hover);
+}
+.seccion-btn.activo {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.seccion-btn--grupo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+.seccion-btn--grupo .flecha {
+  transition: transform 0.15s ease;
+  font-size: 0.8rem;
+}
+.seccion-btn--grupo[aria-expanded="true"] .flecha {
+  transform: rotate(180deg);
+}
+
+/* :not([hidden]): ver nota junto a .pos-hospitalidad__cuenta mas abajo
+   (una regla de autor que fije "display" en un elemento vence SIEMPRE al
+   "display:none" del atributo [hidden], sin importar especificidad). */
+.sidebar__submenu:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-left: 0.5rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--color-border);
+}
+
+.seccion-btn--sub {
+  font-size: 0.85rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.shell__contenido {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* :not([hidden]): ver nota junto a .pos-hospitalidad__cuenta mas abajo.
+   #venta-subnav usa esta misma clase y se oculta/muestra via [hidden]
+   al cambiar de seccion en la barra lateral. */
+.topbar:not([hidden]) {
   display: flex;
   align-items: center;
   gap: 1.5rem;
   padding: 0.75rem 1.25rem;
   background: var(--color-panel);
   border-bottom: 1px solid var(--color-border);
-}
-
-.topbar__brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-primary-dark);
-}
-.topbar__brand span {
-  color: var(--color-text);
-  font-weight: 400;
 }
 
 .topbar__nav {
@@ -75,7 +166,6 @@ html, body {
 }
 
 .topbar__status {
-  margin-left: auto;
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
@@ -84,6 +174,7 @@ html, body {
 
 .app-view {
   padding: 1.25rem;
+  flex: 1;
 }
 
 /* --- Campo de captura de codigo de barras ---
@@ -99,10 +190,50 @@ html, body {
   border: none;
   border-top: 2px solid var(--color-primary);
   outline: none;
-  background: #fffbe6;
+  background: var(--color-panel);
+  color: var(--color-text);
 }
 
 /* --- Componentes compartidos de vistas (retail/hospitalidad) --- */
+
+.buscador-productos {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  padding: 0.55rem 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  background: var(--color-panel);
+  color: var(--color-text);
+}
+
+.categorias-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.categoria-tab {
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.categoria-tab:hover {
+  border-color: var(--color-primary);
+}
+.categoria-tab.activo {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
 
 .grid-productos {
   display: grid;
@@ -133,11 +264,35 @@ html, body {
   padding: 1rem;
 }
 
-.ticket-linea {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.4rem 0;
+.tabla-ticket-scroll {
+  max-height: 45vh;
+  overflow-y: auto;
+  margin-bottom: 0.5rem;
+}
+
+.tabla-ticket {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tabla-ticket thead th {
+  text-align: left;
+  padding: 0.4rem 0.3rem;
+  border-bottom: 2px solid var(--color-primary);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  background: var(--color-panel);
+}
+.tabla-ticket thead th:not(:first-child),
+.tabla-ticket tbody td:not(:first-child) {
+  text-align: right;
+}
+.tabla-ticket tbody td {
+  padding: 0.4rem 0.3rem;
   border-bottom: 1px dashed var(--color-border);
+  font-size: 0.9rem;
 }
 
 .mesas-grid {
@@ -154,9 +309,9 @@ html, body {
   cursor: pointer;
   border: 2px solid var(--color-border);
 }
-.mesa-card.libre { background: #eafaf1; border-color: var(--color-verde); }
-.mesa-card.ocupada { background: #fdecec; border-color: var(--color-rojo); }
-.mesa-card.reservada { background: #fff6e5; border-color: var(--color-amarillo); }
+.mesa-card.libre { background: rgba(62, 207, 142, 0.12); border-color: var(--color-verde); }
+.mesa-card.ocupada { background: rgba(229, 72, 77, 0.12); border-color: var(--color-rojo); }
+.mesa-card.reservada { background: rgba(240, 180, 41, 0.12); border-color: var(--color-amarillo); }
 
 /* --- Semaforizacion de vencimientos --- */
 .badge-nivel {
@@ -167,25 +322,33 @@ html, body {
   font-weight: 700;
   color: #fff;
 }
+/* Separacion cuando el badge va pegado a texto en la misma celda (ej. el
+   "Stock bajo" de Inventario, junto a la cantidad) en vez de solo en su
+   propia celda (como en Alertas). */
+.badge-nivel + .badge-nivel,
+strong + .badge-nivel {
+  margin-left: 0.5rem;
+}
 .badge-nivel.rojo { background: var(--color-rojo); }
 .badge-nivel.amarillo { background: var(--color-amarillo); color: #3a2c00; }
 .badge-nivel.verde { background: var(--color-verde); }
 
-/* --- Layout de las vistas POS (retail / hospitalidad) --- */
-.pos-retail,
-.pos-hospitalidad__cuenta > .pos-retail__grid,
-#vista-cuenta {
+/* --- Layout de las vistas POS (retail / hospitalidad) ---
+   OJO: #vista-cuenta (== .pos-hospitalidad__cuenta, el mismo elemento
+   tiene ambos) NO debe forzarse aqui: un selector de ID le gana en
+   especificidad al atributo [hidden] y a la regla ".pos-hospitalidad__cuenta
+   { display: grid }" de mas abajo, dejando la cuenta siempre visible
+   encima de la grilla de mesas sin importar lo que haga app.js. */
+.pos-hospitalidad__cuenta > .pos-retail__grid {
   display: block;
 }
 
-.pos-retail {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-.pos-hospitalidad__cuenta {
+/* :not([hidden]) es necesario: una regla de autor que fije "display" en
+   este elemento gana SIEMPRE sobre el "display:none" del atributo [hidden]
+   del navegador (el origen "autor" vence a "user-agent" en la cascada,
+   sin importar especificidad), asi que sin esto la cuenta se veria
+   siempre, incluso con el atributo hidden puesto por app.js. */
+.pos-hospitalidad__cuenta:not([hidden]) {
   display: grid;
   grid-template-columns: 1fr 340px;
   grid-template-areas:
@@ -203,17 +366,9 @@ html, body {
   color: var(--color-text-muted);
 }
 .hint code {
-  background: var(--color-bg);
+  background: var(--color-border);
   padding: 0.1rem 0.3rem;
   border-radius: 4px;
-}
-
-.ticket-lineas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 45vh;
-  overflow-y: auto;
 }
 
 .ticket-total {
@@ -247,4 +402,439 @@ html, body {
   background: transparent;
   color: var(--color-primary-dark);
   border: 1px solid var(--color-border);
+}
+
+/* --- Pantallas de administracion (Productos / Inventario / Alertas) --- */
+
+.panel-admin {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.panel-admin h3 {
+  margin-top: 0;
+}
+
+.tabla-admin {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tabla-admin th,
+.tabla-admin td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+.tabla-admin th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+.tabla-admin tr.fila-clickable {
+  cursor: pointer;
+}
+.tabla-admin tr.fila-clickable:hover {
+  background: var(--color-hover);
+}
+
+/* :not([hidden]): #form-nueva-mesa reutiliza esta clase y se oculta con
+   [hidden] (ver nota junto a .pos-hospitalidad__cuenta mas abajo). */
+.form-inline:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+/* :not([hidden]): ver nota junto a .pos-hospitalidad__cuenta mas abajo
+   (una regla de autor con "display" vence SIEMPRE al [hidden] del
+   navegador). #campo-stock-bajo-umbral reutiliza esta clase y se oculta
+   con [hidden] segun el interruptor "Marcar stock bajo". */
+.form-inline .campo:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.form-inline input,
+.form-inline select {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  min-width: 140px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+/* El icono nativo del selector de fecha viene oscuro por defecto y queda
+   invisible sobre un input de fondo oscuro (Chrome/Edge). */
+.form-inline input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+.form-inline .btn-primario,
+.form-inline .btn-secundario {
+  width: auto;
+  margin-top: 0;
+}
+
+.mesa-card.mesa-nueva {
+  background: var(--color-bg);
+  border-style: dashed;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lista-simple {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lista-simple li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px dashed var(--color-border);
+  font-size: 0.9rem;
+}
+
+/* =========================================
+   Rediseño POS Retail (Estilo Aronium)
+   Usa las mismas variables de tema que el resto de la app (ver :root):
+   la version original de este bloque traia colores fijos (#2c2c2c,
+   #333, etc.) que no coincidian con la paleta del resto de las pantallas
+   (Productos/Inventario/Alertas), lo cual se veia desarmonico al navegar
+   entre secciones.
+   ========================================= */
+
+.pos-retail-aronium {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 2.5rem);
+  background: var(--color-bg);
+  color: var(--color-text);
+  margin: -1.25rem; /* Para que el buscador quede pegado al borde, como en Aronium */
+}
+
+/* Header Buscador */
+.pos-retail-aronium__header {
+  background: var(--color-panel);
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+}
+
+.buscador-wrapper {
+  display: flex;
+  align-items: center;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 400px;
+}
+
+.icon-barcode {
+  padding: 0 0.6rem;
+  color: var(--color-text-muted);
+  font-weight: bold;
+}
+
+.pos-retail-aronium__header .buscador-productos {
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  padding: 0.5rem;
+  width: 100%;
+  max-width: none;
+  outline: none;
+  margin: 0;
+}
+.pos-retail-aronium__header .buscador-productos::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Cuerpo principal: ticket+catalogo a la izquierda, acciones a la derecha */
+.pos-retail-aronium__body {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+}
+
+.pos-retail-aronium__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  border-right: 1px solid var(--color-border);
+}
+
+/* En este layout el ticket comparte espacio con totales y catalogo debajo,
+   asi que usa una altura de scroll mas chica que en Hospitalidad. */
+.pos-retail-aronium__main .tabla-ticket-scroll {
+  max-height: 30vh;
+}
+
+/* Mensaje de estado vacio: en el flujo normal, entre la tabla y los
+   totales (nada de position:absolute - con la tabla casi sin alto por
+   no tener filas, terminaba superpuesto encima del bloque de Totales). */
+.ticket-vacio-msg {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  padding: 1.5rem 0;
+}
+.ticket-vacio-msg strong {
+  display: block;
+  font-size: 1.05rem;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.pos-retail-aronium__totales {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.totales-fila {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+.totales-fila.total-grande {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: 0.25rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.pos-retail-aronium__catalogo h3 {
+  margin: 0 0 0.5rem;
+}
+
+/* Sidebar de acciones */
+.pos-retail-aronium__sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--color-panel);
+  padding: 1px;
+}
+
+.acciones-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(60px, auto);
+  gap: 1px;
+  background: var(--color-border); /* separa visualmente los botones */
+}
+
+.btn-accion {
+  border: none;
+  background: var(--color-panel);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  cursor: pointer;
+  padding: 0.4rem;
+  font-size: 0.75rem;
+  transition: background-color 0.1s;
+}
+.btn-accion:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+.btn-accion .btn-icon {
+  font-size: 1rem;
+  font-weight: bold;
+}
+.btn-accion .btn-texto {
+  text-align: center;
+  line-height: 1.1;
+}
+
+.btn-pago {
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+/* Verde propio (mas oscuro que --color-verde, que es un mint claro
+   pensado para badges) para que el texto blanco tenga buen contraste
+   en un boton solido grande. */
+.btn-verde {
+  background: #1f9d5a;
+  color: #fff;
+}
+.btn-verde:hover {
+  background: #188049;
+}
+.btn-verde:disabled {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.btn-verde .btn-icon { font-size: 1.2rem; }
+.btn-verde .btn-texto { font-size: 1rem; font-weight: bold; }
+
+.btn-rojo {
+  background: var(--color-rojo);
+  color: #fff;
+}
+.btn-rojo:hover {
+  background: #c93338;
+}
+
+.btn-span-2 {
+  grid-column: span 2;
+}
+
+.btn-placeholder {
+  background: var(--color-panel);
+}
+
+/* =========================================
+   Formulario extendido de Productos
+   ========================================= */
+
+/* Un campo que debe ocupar toda la fila dentro de .form-inline
+   (flex-wrap): descripcion, separadores de seccion, etc. */
+.campo--ancho {
+  flex: 1 1 100%;
+}
+.campo--ancho textarea {
+  width: 100%;
+}
+
+.form-seccion-titulo {
+  flex: 1 1 100%;
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.form-seccion-titulo:first-child {
+  margin-top: 0;
+}
+
+.form-inline textarea {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 4rem;
+  resize: vertical;
+}
+
+/* :not([hidden]): una regla de autor que fije "display" en un elemento
+   vence SIEMPRE al "display:none" del atributo [hidden] (ver nota junto
+   a .pos-hospitalidad__cuenta), asi que sin esto la vista previa se
+   veria siempre, incluso sin imagen subida. */
+.imagen-preview:not([hidden]) {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  object-fit: cover;
+  background: var(--color-bg);
+  display: block;
+}
+
+/* --- Interruptor (checkbox estilizado como switch deslizante) --- */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+.switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch__track {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  background: var(--color-border);
+  border-radius: 999px;
+  transition: background-color 0.15s ease;
+}
+.switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+.switch input:checked + .switch__track {
+  background: var(--color-primary);
+}
+.switch input:checked + .switch__track .switch__thumb {
+  transform: translateX(18px);
+}
+.switch__label {
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+/* --- Notificacion no bloqueante (mostrarToast() en app.js) ---
+   :not([hidden]) es obligatorio aqui: cualquier regla de autor que fije
+   "display" en un elemento vence SIEMPRE al "display:none" del atributo
+   [hidden] del navegador, sin importar especificidad (ver nota junto a
+   .pos-hospitalidad__cuenta) - ya paso 3 veces en esta app por olvidarlo. */
+.toast:not([hidden]) {
+  display: block;
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius);
+  background: var(--color-verde);
+  color: #08281a;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  animation: toast-entrada 0.15s ease-out;
+}
+.toast.error {
+  background: var(--color-rojo);
+  color: #fff;
+}
+@keyframes toast-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

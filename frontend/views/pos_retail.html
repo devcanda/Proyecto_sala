@@ -1,27 +1,161 @@
 <!--
   views/pos_retail.html
   -----------------------
-  Fragmento (no es un documento HTML completo) inyectado dentro de
-  #app-view por app.js cuando el modo activo es "retail". Pensado para
-  venta ultra rapida de mostrador: grilla de productos + ticket a la vista,
-  sin pasos intermedios de "mesa" o "comanda".
--->
-<section class="pos-retail">
-  <div class="pos-retail__grid">
-    <h2>Productos</h2>
-    <div id="productos-grid" class="grid-productos"></div>
-  </div>
+  Layout inspirado en la pantalla de venta de Aronium: buscador arriba,
+  ticket amplio como tabla + grilla de productos (con buscador/categorias)
+  debajo para venta tactil, y a la derecha un panel de acciones con atajos
+  de teclado estilo F2-F12.
 
-  <aside class="ticket-panel" id="ticket-panel">
-    <h2>Ticket actual</h2>
-    <p class="hint">
-      Escanea un codigo de barras, o escribe <code>5*codigo</code> para
-      agregar 5 unidades de una vez.
-    </p>
-    <ul id="ticket-lineas" class="ticket-lineas"></ul>
-    <div class="ticket-total">
-      Total: <strong id="ticket-total">$0.00</strong>
+  Botones REALMENTE conectados en este momento: el buscador (filtra la
+  grilla de abajo), las tarjetas de producto, las pestañas de categoria,
+  y "F10 Pago" (= #btn-cobrar, cobra la orden actual). El resto de botones
+  del panel de acciones (Eliminar, F3 Buscar, F4 Cantidad, F8 Nueva venta,
+  Cash/Card/Check, Descuento, etc.) son intencionalmente decorativos por
+  ahora: quedan para los proximos pasos de esta adaptacion (ver bitacora
+  del README, seccion 8).
+-->
+<section class="pos-retail-aronium">
+  <header class="pos-retail-aronium__header">
+    <div class="buscador-wrapper">
+      <span class="icon-barcode" aria-hidden="true">⌗</span>
+      <input
+        type="text"
+        id="productos-buscador"
+        class="buscador-productos"
+        placeholder="Buscar producto por nombre o codigo..."
+        autocomplete="off"
+      />
     </div>
-    <button id="btn-cobrar" class="btn-primario" disabled>Cobrar</button>
-  </aside>
+  </header>
+
+  <div class="pos-retail-aronium__body">
+    <main class="pos-retail-aronium__main">
+      <div class="tabla-ticket-scroll">
+        <table class="tabla-ticket">
+          <thead>
+            <tr>
+              <th>Nombre del producto</th>
+              <th>Cantidad</th>
+              <th>Precio</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="ticket-lineas"></tbody>
+        </table>
+      </div>
+
+      <p id="ticket-vacio" class="ticket-vacio-msg">
+        <strong>No hay artículos.</strong><br />
+        Agregue productos escaneando un código de barras o tocando uno de la grilla de abajo.
+      </p>
+
+      <div class="pos-retail-aronium__totales">
+        <div class="totales-fila">
+          <span>Subtotal</span>
+          <span>$0,00</span>
+        </div>
+        <div class="totales-fila">
+          <span>Impuestos</span>
+          <span>$0,00</span>
+        </div>
+        <div class="totales-fila total-grande">
+          <span>TOTAL</span>
+          <span id="ticket-total">$0,00</span>
+        </div>
+      </div>
+
+      <div class="pos-retail-aronium__catalogo">
+        <h3>Productos</h3>
+        <div id="categorias-tabs" class="categorias-tabs"></div>
+        <div id="productos-grid" class="grid-productos"></div>
+      </div>
+    </main>
+
+    <aside class="pos-retail-aronium__sidebar">
+      <div class="acciones-grid">
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">✕</span>
+          <span class="btn-texto">Eliminar</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">F3 🔍</span>
+          <span class="btn-texto">Buscar</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">F4 #</span>
+          <span class="btn-texto">Cantidad</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">F8 +</span>
+          <span class="btn-texto">Nueva venta</span>
+        </button>
+
+        <button type="button" class="btn-accion btn-pago">
+          <span class="btn-icon">F12</span>
+          <span class="btn-texto">Cash</span>
+        </button>
+        <button type="button" class="btn-accion btn-pago">
+          <span class="btn-texto">Card</span>
+        </button>
+        <button type="button" class="btn-accion btn-pago">
+          <span class="btn-texto">Check</span>
+        </button>
+        <div class="btn-placeholder"></div>
+
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">💰</span>
+          <span class="btn-texto">Cajón de din...</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">?</span>
+          <span class="btn-texto">Service type</span>
+        </button>
+        <div class="btn-placeholder"></div>
+        <div class="btn-placeholder"></div>
+
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">F2 %</span>
+          <span class="btn-texto">Descuento</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">🏷️</span>
+          <span class="btn-texto">Price</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">👤</span>
+          <span class="btn-texto">Customer</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">⋯</span>
+          <span class="btn-texto">Mas</span>
+        </button>
+
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">F9 💾</span>
+          <span class="btn-texto">Guardar ve...</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">↩️</span>
+          <span class="btn-texto">Reembolso</span>
+        </button>
+        <button type="button" class="btn-accion btn-verde btn-span-2" id="btn-cobrar" disabled>
+          <span class="btn-icon">F10</span>
+          <span class="btn-texto">Pago</span>
+        </button>
+
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">🔒</span>
+          <span class="btn-texto">Bloquear</span>
+        </button>
+        <button type="button" class="btn-accion btn-gris">
+          <span class="btn-icon">↪️</span>
+          <span class="btn-texto">Transferir</span>
+        </button>
+        <button type="button" class="btn-accion btn-rojo btn-span-2">
+          <span class="btn-icon">🗑️</span>
+          <span class="btn-texto">Anular orden</span>
+        </button>
+      </div>
+    </aside>
+  </div>
 </section>

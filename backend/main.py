@@ -12,10 +12,12 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from backend.database import Base, engine
 import backend.models  # noqa: F401  (registra los modelos en Base.metadata)
-from backend.routers import pos_router, inv_router, alert_router
+from backend.routers import pos_router, inv_router, alert_router, config_router
+from backend.routers.inv_router import IMAGENES_DIR
 
 app = FastAPI(
     title="Salsa POS",
@@ -36,6 +38,10 @@ app.add_middleware(
 app.include_router(pos_router.router)
 app.include_router(inv_router.router)
 app.include_router(alert_router.router)
+app.include_router(config_router.router)
+
+# Imagenes de producto (POST /inventario/productos/{id}/imagen las guarda aqui).
+app.mount("/media", StaticFiles(directory=IMAGENES_DIR), name="media")
 
 
 @app.on_event("startup")

@@ -127,6 +127,15 @@ def listar_mesas(db: Session = Depends(get_db)):
     return db.query(Mesa).filter(Mesa.activa.is_(True)).order_by(Mesa.nombre).all()
 
 
+@router.post("/mesas", response_model=schemas.MesaOut, status_code=201)
+def crear_mesa(payload: schemas.MesaCreate, db: Session = Depends(get_db)):
+    mesa = Mesa(nombre=payload.nombre, capacidad=payload.capacidad)
+    db.add(mesa)
+    db.commit()
+    db.refresh(mesa)
+    return mesa
+
+
 @router.get("/mesas/{mesa_id}/orden-abierta", response_model=schemas.OrdenOut | None)
 def obtener_orden_abierta_de_mesa(mesa_id: int, db: Session = Depends(get_db)):
     """

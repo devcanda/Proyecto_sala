@@ -1,0 +1,86 @@
+<!--
+  views/inventario.html
+  ------------------------
+  Seccion de administracion: Resumen de inventario y detalle de lotes por producto.
+-->
+<section class="pos-inventario">
+
+  <!-- Panel principal: Resumen de inventario -->
+  <div class="panel-admin" id="panel-resumen-inventario">
+    <h3>Estado de Inventario</h3>
+
+    <input
+      type="text"
+      id="inventario-buscador"
+      class="buscador-productos"
+      placeholder="Buscar producto por nombre o codigo..."
+      autocomplete="off"
+    />
+
+    <!-- Filtro de Grupos -->
+    <div id="inventario-categorias-tabs" class="categorias-tabs">
+      <!-- Se llena dinamicamente por app.js -->
+    </div>
+
+    <!-- Tabla principal -->
+    <table class="tabla-admin" id="tabla-resumen-inventario">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th>Grupo</th>
+          <th>Tipo</th>
+          <th>Stock Total</th>
+        </tr>
+      </thead>
+      <tbody id="inventario-resumen-body">
+        <!-- Se llena dinamicamente -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Contenedor para el detalle de un producto seleccionado -->
+  <div id="detalle-inventario-producto" hidden>
+    <div style="margin-bottom: 1rem;">
+      <button id="btn-volver-inventario" class="btn-secundario">← Volver al resumen</button>
+    </div>
+
+    <div class="panel-admin" id="panel-nuevo-lote">
+      <h3 id="lote-form-titulo">Registrar lote nuevo para <span id="lotes-producto-nombre-nuevo"></span></h3>
+      <form id="form-lote" class="form-inline">
+        <input type="hidden" id="lote-id" />
+        <div class="campo">
+          <label for="lote-cantidad">Cantidad</label>
+          <input type="number" id="lote-cantidad" step="0.001" min="0" required />
+        </div>
+        <div class="campo">
+          <label for="lote-costo">Costo de adquisicion (por unidad)</label>
+          <input type="text" id="lote-costo" class="input-precio" required />
+        </div>
+        <div class="campo">
+          <label for="lote-vencimiento">Fecha de vencimiento</label>
+          <input type="date" id="lote-vencimiento" />
+        </div>
+        <button type="submit" class="btn-primario" id="btn-guardar-lote">Registrar lote</button>
+        <button type="button" id="btn-cancelar-edicion-lote" class="btn-secundario" hidden>Cancelar edición</button>
+      </form>
+    </div>
+
+    <div class="panel-admin" id="panel-lotes">
+      <h3>Lotes de <span id="lotes-producto-nombre"></span> (orden FIFO)</h3>
+      <p class="hint">Haz clic en un lote para corregir su cantidad, costo o vencimiento.</p>
+      <table class="tabla-admin">
+        <thead>
+          <tr>
+            <th>Ingreso</th>
+            <th>Cantidad actual</th>
+            <th>Costo</th>
+            <th>Vencimiento</th>
+            <th>Nivel</th>
+          </tr>
+        </thead>
+        <tbody id="lotes-tabla-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</section>

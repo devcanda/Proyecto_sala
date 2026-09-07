@@ -8,29 +8,62 @@
 </head>
 <body>
   <!--
-    Shell principal. La logica de ruteo real (retail vs mesas) vive en
-    js/app.js: lee configuracion local (localStorage / futura tabla de
-    configuracion del backend) y decide que vista cargar dentro de
-    #app-view, inyectando el HTML de views/pos_retail.html o
-    views/pos_hospitalidad.html.
+    Shell principal, inspirado en la separacion de Aronium entre caja
+    rapida (pantalla principal) y secciones de administracion propias.
+    La logica de ruteo real vive en js/app.js: decide que "seccion" de
+    nivel superior mostrar (venta / productos / inventario / alertas /
+    configuracion) y, dentro de "venta", que sub-modo (retail vs mesas),
+    inyectando el HTML de views/*.html dentro de #app-view. Productos,
+    Inventario, Alertas y Configuracion viven detras de un submenu
+    "Administracion" en la barra lateral (ver #admin-submenu).
 
     Regla de UX critica (documento maestro, seccion 5-B): #barcode-input
     debe mantener el foco SIEMPRE que no haya un dialogo modal abierto,
     para que el lector de codigo de barras (que emula teclado) funcione
     sin que el operario tenga que tocar el mouse.
   -->
-  <header class="topbar">
-    <div class="topbar__brand">Salsa <span>POS</span></div>
-    <nav class="topbar__nav">
-      <button data-modo="retail" class="modo-btn">Retail</button>
-      <button data-modo="hospitalidad" class="modo-btn">Hospitalidad</button>
-    </nav>
-    <div class="topbar__status" id="connection-status">● conectando...</div>
-  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar__brand">Salsa <span>POS</span></div>
+      <nav class="sidebar__nav">
+        <button data-seccion="venta" class="seccion-btn">Venta</button>
+        <button
+          type="button"
+          id="btn-admin-toggle"
+          class="seccion-btn seccion-btn--grupo"
+          aria-expanded="false"
+          aria-controls="admin-submenu"
+        >
+          Administración
+          <span class="flecha" aria-hidden="true">▾</span>
+        </button>
+        <div id="admin-submenu" class="sidebar__submenu" hidden>
+          <button data-seccion="productos" class="seccion-btn seccion-btn--sub">Productos</button>
+          <button data-seccion="inventario" class="seccion-btn seccion-btn--sub">Inventario</button>
+          <button data-seccion="alertas" class="seccion-btn seccion-btn--sub">Alertas</button>
+          <button data-seccion="configuracion" class="seccion-btn seccion-btn--sub">Configuración</button>
+        </div>
+      </nav>
+      <div class="topbar__status" id="connection-status">● conectando...</div>
+    </aside>
 
-  <main id="app-view" class="app-view">
-    <!-- Contenido inyectado dinamicamente por app.js -->
-  </main>
+    <div class="shell__contenido">
+      <header class="topbar" id="venta-subnav" hidden>
+        <nav class="topbar__nav">
+          <button data-modo="retail" class="modo-btn">Retail</button>
+          <button data-modo="hospitalidad" class="modo-btn">Hospitalidad</button>
+        </nav>
+      </header>
+
+      <main id="app-view" class="app-view">
+        <!-- Contenido inyectado dinamicamente por app.js -->
+      </main>
+    </div>
+  </div>
+
+  <!-- Notificaciones no bloqueantes (ej. "Producto guardado correctamente").
+       Ver mostrarToast() en app.js. -->
+  <div id="toast" class="toast" hidden></div>
 
   <!-- Campo oculto/persistente que captura la entrada del lector de barras.
        Ver frontend/js/barcode.js para el detalle de captura y el soporte
