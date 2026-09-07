@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Bases de datos locales
+backend/data/*.db
+backend/data/*.sqlite3
+*.db-journal
+
+# Variables de entorno / secretos
+.env
+.env.*
+!.env.example
+
+# Frontend / empaquetado escritorio (Tauri/Electron)
+node_modules/
+dist/
+build/
+src-tauri/target/
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

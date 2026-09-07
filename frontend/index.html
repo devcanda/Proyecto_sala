@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salsa POS</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!--
+    Shell principal. La logica de ruteo real (retail vs mesas) vive en
+    js/app.js: lee configuracion local (localStorage / futura tabla de
+    configuracion del backend) y decide que vista cargar dentro de
+    #app-view, inyectando el HTML de views/pos_retail.html o
+    views/pos_hospitalidad.html.
+
+    Regla de UX critica (documento maestro, seccion 5-B): #barcode-input
+    debe mantener el foco SIEMPRE que no haya un dialogo modal abierto,
+    para que el lector de codigo de barras (que emula teclado) funcione
+    sin que el operario tenga que tocar el mouse.
+  -->
+  <header class="topbar">
+    <div class="topbar__brand">Salsa <span>POS</span></div>
+    <nav class="topbar__nav">
+      <button data-modo="retail" class="modo-btn">Retail</button>
+      <button data-modo="hospitalidad" class="modo-btn">Hospitalidad</button>
+    </nav>
+    <div class="topbar__status" id="connection-status">● conectando...</div>
+  </header>
+
+  <main id="app-view" class="app-view">
+    <!-- Contenido inyectado dinamicamente por app.js -->
+  </main>
+
+  <!-- Campo oculto/persistente que captura la entrada del lector de barras.
+       Ver frontend/js/barcode.js para el detalle de captura y el soporte
+       de multiplicadores rapidos (ej. "5*7501234567890"). -->
+  <input
+    type="text"
+    id="barcode-input"
+    class="barcode-input"
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="off"
+    spellcheck="false"
+    aria-label="Entrada de codigo de barras"
+  />
+
+  <script src="js/api.js"></script>
+  <script src="js/barcode.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+# docker-compose.yml
+# --------------------
+# Orquestacion para el "Modo Servidor" en variante LAN LOCAL (documento
+# maestro, seccion 4): multiples cajas/tablets en la red local del negocio
+# conectandose a un unico PostgreSQL. Pensado para desplegarse via
+# Portainer sobre un servidor/mini-PC local, sin dependencia de internet.
+#
+# Para la variante en la NUBE (AWS/Azure) de este mismo modo, no se usa
+# este docker-compose: la base de datos la administra el proveedor (RDS /
+# Azure Database for PostgreSQL) y el backend se despliega como contenedor
+# suelto (mismo Dockerfile) en ECS Fargate o Azure Container Apps. Ver la
+# guia paso a paso en README.md, seccion "Cómo correr el proyecto".
+#
+# El modo Standalone (SQLite, 1 PC) NO usa este archivo: en ese caso el
+# backend corre directo con `uvicorn backend.main:app` y no requiere Docker.
+#
+# Uso:
+#   1. Copiar .env.example a .env y completar POSTGRES_* con credenciales
+#      reales (nunca usar las de ejemplo en produccion).
+#   2. docker compose up -d --build
+#   3. El backend queda expuesto en el puerto 8000 de la red LAN.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-salsa_pos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cambiar_esta_clave}
+      POSTGRES_DB: ${POSTGRES_DB:-salsa_pos}
+    volumes:
+      - salsa_pos_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-salsa_pos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_MODE: postgresql
+      POSTGRES_USER: ${POSTGRES_USER:-salsa_pos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cambiar_esta_clave}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-salsa_pos}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:1420}
+    ports:
+      - "8000:8000"
+
+volumes:
+  salsa_pos_db_data:

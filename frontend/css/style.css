@@ -1,0 +1,250 @@
+/*
+  style.css
+  ----------
+  Estilo base inspirado en la limpieza de Aronium: alto contraste, botones
+  grandes pensados para pantallas tactiles/mostrador, y una jerarquia visual
+  simple para que el operario de caja encuentre lo que necesita sin pensar.
+*/
+
+:root {
+  --color-bg: #f4f5f7;
+  --color-panel: #ffffff;
+  --color-primary: #1a73e8;
+  --color-primary-dark: #0f4fa3;
+  --color-text: #1f2430;
+  --color-text-muted: #6b7280;
+  --color-border: #e2e4e9;
+
+  --color-rojo: #d64545;
+  --color-amarillo: #e2a63b;
+  --color-verde: #2fa365;
+
+  --radius: 10px;
+  --font-base: "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--font-base);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topbar__brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+.topbar__brand span {
+  color: var(--color-text);
+  font-weight: 400;
+}
+
+.topbar__nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.modo-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  cursor: pointer;
+  font-weight: 600;
+}
+.modo-btn.activo {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.topbar__status {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.topbar__status.ok { color: var(--color-verde); }
+.topbar__status.error { color: var(--color-rojo); }
+
+.app-view {
+  padding: 1.25rem;
+}
+
+/* --- Campo de captura de codigo de barras ---
+   Se mantiene visible pero de bajo perfil: el operario ve que puede
+   escanear/tipear sin que el elemento le robe protagonismo a la UI. */
+.barcode-input {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  border: none;
+  border-top: 2px solid var(--color-primary);
+  outline: none;
+  background: #fffbe6;
+}
+
+/* --- Componentes compartidos de vistas (retail/hospitalidad) --- */
+
+.grid-productos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.producto-card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.05s ease-in-out;
+}
+.producto-card:hover {
+  border-color: var(--color-primary);
+}
+.producto-card:active {
+  transform: scale(0.97);
+}
+
+.ticket-panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.ticket-linea {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.mesas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.mesa-card {
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid var(--color-border);
+}
+.mesa-card.libre { background: #eafaf1; border-color: var(--color-verde); }
+.mesa-card.ocupada { background: #fdecec; border-color: var(--color-rojo); }
+.mesa-card.reservada { background: #fff6e5; border-color: var(--color-amarillo); }
+
+/* --- Semaforizacion de vencimientos --- */
+.badge-nivel {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+.badge-nivel.rojo { background: var(--color-rojo); }
+.badge-nivel.amarillo { background: var(--color-amarillo); color: #3a2c00; }
+.badge-nivel.verde { background: var(--color-verde); }
+
+/* --- Layout de las vistas POS (retail / hospitalidad) --- */
+.pos-retail,
+.pos-hospitalidad__cuenta > .pos-retail__grid,
+#vista-cuenta {
+  display: block;
+}
+
+.pos-retail {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.pos-hospitalidad__cuenta {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  grid-template-areas:
+    "volver volver"
+    "grid   ticket";
+  gap: 1.25rem;
+}
+.pos-hospitalidad__cuenta > #btn-volver-mesas,
+.pos-hospitalidad__cuenta > #cuenta-titulo {
+  grid-column: 1 / -1;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.hint code {
+  background: var(--color-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.ticket-lineas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.ticket-total {
+  margin-top: 0.75rem;
+  font-size: 1.1rem;
+  text-align: right;
+}
+
+.btn-primario,
+.btn-secundario {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-top: 0.75rem;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.btn-primario {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-primario:disabled {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.btn-secundario {
+  width: auto;
+  background: transparent;
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-border);
+}
