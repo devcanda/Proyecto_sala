@@ -1340,6 +1340,14 @@ stock; bajar de 5 a 2 devuelve 3.
   pulsar siempre selecciona.
 - **Cantidad** reutiliza el mismo teclado numérico en pantalla del diálogo
   ya existente, precargado con la cantidad **actual** de la línea, no con 1.
+- **Eliminar se pinta de rojo cuando hay una línea seleccionada.** A
+  petición del desarrollador: el botón cumple dos funciones a la vez, le
+  confirma al operario que su clic sobre la línea sí se registró, y le
+  anticipa que ese botón va a sacar el producto del ticket. Se ató por CSS
+  al estado `:not(:disabled)` en vez de a una clase puesta por el JS,
+  porque el habilitado ya lo gobierna `marcarLineaSeleccionada()` y así las
+  dos señales no pueden desincronizarse. Usa el mismo rojo que "Anular
+  orden", para que la caja tenga un único color de acción destructiva.
 - **Buscar** lleva el foco al buscador y deja lo tecleado seleccionado para
   reemplazarlo de una vez.
 - **Nueva venta** abre ventas en paralelo, para dejar en espera al cliente

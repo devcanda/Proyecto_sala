@@ -1632,3 +1632,21 @@ body.redimensionando {
   color: var(--color-text);
   font-weight: 600;
 }
+
+/* Eliminar se pone rojo en cuanto hay una linea seleccionada, es decir en
+   cuanto deja de estar deshabilitado. Cumple dos funciones a la vez: le
+   confirma al operario que su clic sobre la linea si se registro, y le
+   anticipa que ese boton va a sacar el producto del ticket. Se usa el
+   mismo rojo que "Anular orden" para que la caja tenga un unico color de
+   accion destructiva.
+
+   Va con :not(:disabled) y no con una clase que ponga el JS a proposito:
+   el habilitado ya lo gobierna marcarLineaSeleccionada(), asi que atarlo
+   a ese estado evita que las dos señales puedan desincronizarse. */
+#btn-eliminar-linea:not(:disabled) {
+  background: #c62828;
+  color: #fff;
+}
+#btn-eliminar-linea:not(:disabled):hover {
+  background: #d63535;
+}
