@@ -64,19 +64,36 @@
   /* Panel de acciones de Retail. El boton de los tres puntos vive en
      index.html y se dimensiona con estas mismas variables para encajar en
      la ultima celda de la reticula, asi que cambiar una de las dos las
-     mantiene alineadas. */
-  --ancho-acciones: 27rem;
-  --alto-celda-accion: 4.7rem;
+     mantiene alineadas.
+
+     El ancho va en vw y no en rem porque en el original el panel ocupa una
+     PROPORCION de la ventana (643 de 1920 = 33,5%), no un ancho fijo. El
+     clamp evita que se quede sin sitio en pantallas pequeñas o que se coma
+     la mitad en pantallas muy anchas. El tirador puede sobreescribirlo. */
+  --ancho-acciones: clamp(22rem, 33.5vw, 44rem);
+  /* Tres alturas distintas, medidas sobre la captura de referencia: la
+     fila superior es mas alta que las demas, y la de metodos de pago mas
+     baja. Antes las tres compartian un unico valor y por eso el panel se
+     veia mas plano que el original. */
+  --alto-celda-accion: 4.35rem;
+  --alto-celda-accion-alta: 6.2rem;
+  --alto-celda-pago: 3.8rem;
 
   --font-base: "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 html {
-  /* Palanca global de densidad. Como toda la hoja esta en rem, bajar la
-     raiz de los 16px que trae el navegador a 14px comprime la interfaz
-     entera de forma proporcional: es exactamente el aire que sobraba
-     frente a Aronium, y evita tener que reescribir cada padding. */
-  font-size: 14px;
+  /* Palanca global de densidad. Como toda la hoja esta en rem, cambiar la
+     raiz comprime o expande la interfaz entera de forma proporcional, sin
+     tener que reescribir cada padding.
+
+     Estuvo en 14px, elegido a ojo para quitarle el aire de pagina web. Al
+     medir la captura de referencia contra la nuestra a la misma resolucion
+     (1920) resulto que nos habiamos pasado de compresion: las etiquetas de
+     los botones median 10,9px contra 13px del original, y los nombres de
+     producto 12,6px contra 15px. Los dos desfases dan el mismo factor, asi
+     que se corrige subiendo la raiz en vez de tocar tamaño por tamaño. */
+  font-size: 16.5px;
 }
 
 * {
@@ -428,7 +445,8 @@ body[data-seccion="venta"] .sidebar {
 }
 .tabla-ticket thead th {
   text-align: left;
-  padding: 0.4rem 0.3rem;
+  /* 33px de alto de fila sobre la referencia a 1920. */
+  padding: 0.46rem 0.3rem;
   border-bottom: 2px solid var(--color-primary);
   color: var(--color-text-muted);
   font-size: 0.8rem;
@@ -782,7 +800,8 @@ strong + .badge-nivel {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  height: 2.9rem;
+  /* 55px sobre la captura de referencia a 1920. */
+  height: 3.35rem;
   flex-shrink: 0;
   padding: 0 0.6rem;
   background: var(--color-panel);
@@ -994,7 +1013,9 @@ strong + .badge-nivel {
   padding-top: 0.45rem;
   /* Separador punteado, como en el original. */
   border-top: 1px dashed var(--color-border);
-  font-size: 1.35rem;
+  /* 26px sobre la referencia a 1920: el TOTAL pesa mas que el resto de la
+     tipografia, no solo un poco mas. */
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--color-text);
 }
@@ -1026,10 +1047,15 @@ strong + .badge-nivel {
    pero era tan tenue que no se veia, y se reporto como si el tirador no
    existiera. Un control que se descubre mirando tiene que leerse. */
 .pos-retail__agarre {
+  /* El patron se repite en vertical, asi que el alto TIENE que ser un
+     multiplo exacto del paso: con 2rem (28px) sobre un paso de 8px cabian
+     tres puntos y medio, y el cuarto se veia cortado. Atarlo al paso con
+     calc() evita que vuelva a descuadrarse si alguien toca el alto. */
+  --paso-punto: 8px;
   width: 4px;
-  height: 2rem;
+  height: calc(var(--paso-punto) * 3);
   background-image: radial-gradient(circle, var(--color-text) 1.7px, transparent 1.9px);
-  background-size: 4px 8px;
+  background-size: 4px var(--paso-punto);
   background-repeat: repeat-y;
   opacity: 0.7;
 }
@@ -1128,9 +1154,15 @@ body.redimensionando {
 /* Metodos de pago: en el original se distinguen por una linea de color en
    el borde inferior, no por el relleno del boton. */
 .btn-pago {
-  min-height: 3.1rem;
+  min-height: var(--alto-celda-pago);
   border-bottom: 3px solid transparent;
   font-size: 0.9rem;
+}
+
+/* La primera fila del panel (Eliminar / Buscar / Cantidad / Nueva venta)
+   es mas alta que el resto en el original: son las acciones de cabecera. */
+.acciones-grid--principal .btn-accion {
+  min-height: var(--alto-celda-accion-alta);
 }
 .btn-pago--efectivo { border-bottom-color: #43a047; }
 .btn-pago--tarjeta,
@@ -1176,40 +1208,16 @@ body.redimensionando {
   background: var(--color-panel);
 }
 
-/* --- Catalogo tactil ---
-   Ocupa la banda central del panel de acciones, que en el original esta
-   vacia con la marca de agua del logo. Se conserva porque un mostrador
-   tactil lo necesita (decision del 2026-09-07), aunque Aronium no lo
-   tenga. */
-.pos-retail__catalogo {
-  display: flex;
-  flex-direction: column;
+/* --- Banda central vacia del panel de acciones ---
+   En el original es donde va la marca de agua del logo. Aqui estuvo el
+   catalogo tactil hasta que se pidio despejar la zona (2026-09-08); ver la
+   nota en views/pos_retail.html. Sigue haciendo falta como elemento: es el
+   separador flexible que empuja el grupo de botones inferior contra el
+   fondo del panel. */
+.pos-retail__hueco {
   flex: 1;
   min-height: 0;
-  padding: 0.5rem;
   background: var(--color-bg);
-}
-/* En un panel estrecho las categorias no caben en varias filas sin comerse
-   la grilla, asi que aqui van en una sola fila que se desplaza en
-   horizontal, como una tira de pestañas. */
-.pos-retail__catalogo .categorias-tabs {
-  flex-shrink: 0;
-  flex-wrap: nowrap;
-  margin-bottom: 0.45rem;
-  padding-bottom: 0.35rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-}
-.pos-retail__catalogo .categoria-tab {
-  flex-shrink: 0;
-}
-.pos-retail__catalogo .grid-productos {
-  flex: 1;
-  min-height: 0;
-  grid-template-columns: repeat(2, 1fr);
-  align-content: start;
-  overflow-y: auto;
 }
 
 /* =========================================
@@ -1454,4 +1462,173 @@ body.redimensionando {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* =========================================
+   Dialogo de cantidad con teclado numerico
+   Calco del 2026-09-08. Se abre al elegir un producto en el buscador y
+   sirve igual con el raton/dedo que con el teclado fisico.
+   ========================================= */
+
+/* :not([hidden]) obligatorio: una regla de autor con "display" vence
+   SIEMPRE al [hidden] del navegador (ver la nota junto a
+   .pos-hospitalidad__cuenta). */
+.dialogo-cantidad:not([hidden]) {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  padding-top: 2vh;
+  /* Sin oscurecer el fondo, como en el original: el cajero necesita seguir
+     viendo el ticket mientras teclea la cantidad. */
+  background: transparent;
+}
+
+.dialogo-cantidad__panel {
+  width: 22.5rem;
+  max-width: calc(100vw - 2rem);
+  padding: 1rem 1.1rem 1.1rem;
+  background: var(--color-panel-alto);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+}
+
+.dialogo-cantidad__titulo {
+  margin: 0 0 0.7rem;
+  font-size: 1.3rem;
+  font-weight: 400;
+  text-align: center;
+  color: var(--color-text);
+}
+
+.dialogo-cantidad__texto {
+  margin: 0 0 0.15rem;
+  font-size: 0.88rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+.dialogo-cantidad__texto span {
+  color: var(--color-text);
+}
+
+.dialogo-cantidad__campo {
+  width: 100%;
+  height: 2.6rem;
+  margin-top: 0.8rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  outline: none;
+  background: var(--color-bg);
+  /* Cifra grande, a la derecha y en el azul de acento, como en el
+     original: es el unico dato que el cajero tiene que leer de un vistazo. */
+  color: var(--color-primary-dark);
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.dialogo-cantidad__error:not([hidden]) {
+  display: block;
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  text-align: center;
+  color: var(--color-rojo);
+}
+
+.teclado-numerico {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-top: 0.8rem;
+}
+
+.tecla {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-panel);
+  color: var(--color-text);
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+.tecla:hover {
+  background: var(--color-hover);
+}
+.tecla:active {
+  background: var(--color-seleccion);
+}
+
+.tecla--secundaria {
+  font-size: 0.95rem;
+}
+
+/* El Enter ocupa dos filas de la ultima columna, como en el original. */
+.tecla--enter {
+  grid-row: span 2;
+}
+
+.tecla__icono {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+/* =========================================
+   Linea seleccionada del ticket y pestañas de ventas en paralelo
+   (botones Eliminar / F4 Cantidad / F8 Nueva venta, 2026-09-08)
+   ========================================= */
+
+/* La seleccion tiene que leerse de un vistazo: es sobre esta linea sobre la
+   que van a actuar Eliminar y Cantidad. */
+#ticket-lineas tr {
+  cursor: pointer;
+}
+#ticket-lineas tr:hover {
+  background: var(--color-hover);
+}
+#ticket-lineas tr.seleccionada {
+  background: var(--color-seleccion);
+}
+#ticket-lineas tr.seleccionada td {
+  color: #fff;
+}
+
+/* Barra de pestañas. Solo aparece con mas de una venta abierta (ver
+   renderPestanasOrdenes), asi que el caso normal queda igual que el
+   original, que no tiene esta barra. */
+.pestanas-ordenes:not([hidden]) {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+  padding: 0 0.5rem;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pestana-orden {
+  min-height: 1.9rem;
+  padding: 0 0.9rem;
+  border: none;
+  border-top: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.pestana-orden:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+.pestana-orden.activa {
+  background: var(--color-bg);
+  border-top-color: var(--color-primary);
+  color: var(--color-text);
+  font-weight: 600;
 }

@@ -30,6 +30,8 @@ const state = {
   filtroCategoria: "todas", // solo se usa en la grilla de Retail
   modoBusqueda: localStorage.getItem("salsa_pos_modo_busqueda") || "todos",
   resultadoActivo: 0, // fila resaltada del desplegable del buscador
+  detalleSeleccionado: null, // id de la linea resaltada del ticket
+  ordenesAbiertas: [], // ids de las ventas en paralelo (pestañas, boton F8)
   adminSubmenuAbierto: false, // Productos/Inventario/Alertas/Configuracion
 };
 
@@ -62,6 +64,11 @@ const MODOS_BUSQUEDA = {
     campos: ["nombre"],
     placeholder: "Buscar producto por nombre",
     icono: "#i-buscar",
+    // Unico modo con busqueda difusa (tolerante a erratas). Los modos de
+    // codigo NO la llevan a proposito: aproximar un codigo de barras es
+    // peligroso, porque agregaria a la venta un producto distinto del que
+    // se escaneo y nadie lo notaria hasta cuadrar la caja.
+    difuso: true,
   },
 };
 
@@ -171,10 +178,18 @@ async function init() {
     state.productos = [];
   }
 
+  // Ventas que quedaron abiertas en esta caja, para poder retomarlas tras
+  // recargar. Va antes del primer render para que el ticket ya salga con la
+  // venta recuperada en vez de vacio y corregirse despues.
+  await restaurarOrdenesAbiertas();
+
   // Antes del primer render, para que el panel salga ya con el ancho que
   // dejo el usuario en vez de saltar al ancho de fabrica y corregirse.
   restaurarAnchoAcciones();
   window.addEventListener("resize", restaurarAnchoAcciones);
+
+  // Dialogo de cantidad: vive en index.html, asi que se enlaza una sola vez.
+  enlazarDialogoCantidad();
 
   document.querySelectorAll(".seccion-btn[data-seccion]").forEach((btn) => {
     btn.addEventListener("click", () => cambiarSeccion(btn.dataset.seccion));
@@ -192,6 +207,23 @@ async function init() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") cerrarAdminSubmenu();
+  });
+
+  // Atajos del panel de acciones. Estan escritos en los propios botones
+  // (F3/F4/F8), asi que tienen que responder de verdad.
+  const ATAJOS = { F3: enfocarBuscador, F4: cambiarCantidadLineaSeleccionada, F8: nuevaVenta };
+  document.addEventListener("keydown", (e) => {
+    if (state.seccion !== "venta") return;
+    const accion = ATAJOS[e.key];
+    if (!accion) return;
+    // Con el dialogo de cantidad abierto manda el dialogo: F4 no debe
+    // abrir otro encima del que ya se esta usando.
+    const dlg = document.getElementById("dialogo-cantidad");
+    if (dlg && !dlg.hidden) return;
+    // F3 abre la busqueda del navegador y F8 no hace nada util en el:
+    // se anulan para que el atajo sea el de la caja, no el del navegador.
+    e.preventDefault();
+    accion();
   });
   document.querySelectorAll(".modo-btn").forEach((btn) => {
     btn.addEventListener("click", () => cambiarModo(btn.dataset.modo));
@@ -342,6 +374,22 @@ async function renderVistaVenta() {
   // Tirador para ajustar el ancho del panel de acciones (solo en Retail).
   enlazarSeparadorAcciones();
 
+  // Acciones del panel. Eliminar y Cantidad trabajan sobre la linea
+  // seleccionada del ticket; su estado habilitado lo lleva
+  // marcarLineaSeleccionada().
+  const acciones = {
+    "btn-eliminar-linea": eliminarLineaSeleccionada,
+    "btn-cantidad": cambiarCantidadLineaSeleccionada,
+    "btn-buscar": enfocarBuscador,
+    "btn-nueva-venta": nuevaVenta,
+  };
+  Object.entries(acciones).forEach(([id, accion]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", accion);
+  });
+
+  renderPestanasOrdenes();
+
   const btnCobrar = document.getElementById("btn-cobrar");
   if (btnCobrar) btnCobrar.addEventListener("click", cobrarOrdenActual);
 }
@@ -383,7 +431,10 @@ function renderCategoriasTabs() {
 // ---------- Ancho del panel de acciones (tirador de ajuste) ----------
 
 const ANCHO_ACCIONES_MIN = 240; // px; por debajo las 4 columnas no respiran
-const ANCHO_ACCIONES_MAX = 640;
+// El ancho de fabrica es proporcional a la ventana (33,5vw, ver style.css):
+// a 1920 son 643px, asi que el tope tiene que dejar sitio por encima de eso
+// o el tirador no podria ni igualar el valor por defecto.
+const ANCHO_ACCIONES_MAX = 900;
 const CLAVE_ANCHO_ACCIONES = "salsa_pos_ancho_acciones";
 
 /**
@@ -478,14 +529,122 @@ function terminoBusqueda() {
   const raw = el ? el.value.trim() : "";
   if (!raw) return { termino: "", cantidad: 1 };
   const { codigo, cantidad } = window.barcodeFocus.parsear(raw);
-  return { termino: codigo.toLowerCase(), cantidad };
+  return { termino: normalizar(codigo), cantidad };
+}
+
+/**
+ * Minusculas y sin acentos. En el mostrador nadie escribe "Azúcar" con
+ * tilde, y sin esto ese producto simplemente no aparecia. Aplica a todos
+ * los modos: en los codigos no hay acentos, asi que no les afecta.
+ * Nota: la "ñ" tambien se descompone y queda como "n", de forma que
+ * "piña" y "pina" encuentran lo mismo, que es lo que se quiere.
+ */
+function normalizar(texto) {
+  return (texto || "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Distancia de edicion (Levenshtein) con tope: cuantas letras hay que
+ * insertar, borrar o cambiar para pasar de una palabra a la otra. El tope
+ * permite abandonar en cuanto se sabe que no va a servir, que es lo que
+ * mantiene esto barato aunque se recalcule en cada tecla.
+ */
+function distanciaEdicion(a, b, maximo) {
+  if (a === b) return 0;
+  // Poda barata: la diferencia de longitudes ya es una cota inferior de la
+  // distancia, asi que si supera el tope no hay nada que calcular.
+  if (Math.abs(a.length - b.length) > maximo) return maximo + 1;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  let anterior = new Array(b.length + 1);
+  let actual = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) anterior[j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    actual[0] = i;
+    let minimoFila = actual[0];
+    for (let j = 1; j <= b.length; j++) {
+      const costo = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      actual[j] = Math.min(
+        anterior[j] + 1, // borrar
+        actual[j - 1] + 1, // insertar
+        anterior[j - 1] + costo // sustituir
+      );
+      if (actual[j] < minimoFila) minimoFila = actual[j];
+    }
+    // Si la fila entera ya supera el tope, ninguna continuacion baja de ahi.
+    if (minimoFila > maximo) return maximo + 1;
+    const intercambio = anterior;
+    anterior = actual;
+    actual = intercambio;
+  }
+  return anterior[b.length];
+}
+
+/**
+ * Cuantas erratas se toleran segun lo largo que sea lo tecleado. Con tres
+ * letras o menos no se tolera ninguna: a esa longitud casi cualquier
+ * palabra "se parece" a casi cualquier otra y el desplegable se llenaria
+ * de ruido justo cuando el operario todavia esta empezando a escribir.
+ */
+function toleranciaErratas(largo) {
+  if (largo < 4) return 0;
+  if (largo < 7) return 1;
+  if (largo < 10) return 2;
+  return 3;
+}
+
+/**
+ * Puntua como de bien encaja lo tecleado con el nombre de un producto.
+ * Devuelve 0 si no encaja. Mas alto es mejor, y el desplegable ordena por
+ * este numero, asi que la mejor coincidencia queda arriba y resaltada,
+ * que es la que agrega el Enter.
+ *
+ * Las coincidencias exactas mandan siempre sobre las aproximadas: escribir
+ * el nombre entero y bien nunca puede quedar por debajo de una errata.
+ */
+function puntuarNombre(nombre, termino) {
+  if (!termino) return 0;
+  const n = normalizar(nombre);
+  if (n === termino) return 100;
+  if (n.startsWith(termino)) return 90;
+
+  const palabrasNombre = n.split(/\s+/).filter(Boolean);
+  if (palabrasNombre.some((p) => p.startsWith(termino))) return 80;
+  if (n.includes(termino)) return 70;
+
+  // Difuso, palabra por palabra. Comparar contra el nombre COMPLETO no
+  // sirve: "salchica" esta a una letra de "salchicha", pero a mas de diez
+  // de "salchicha ranchera (paquete)", que es el nombre real del producto.
+  const palabrasTermino = termino.split(/\s+/).filter(Boolean);
+  let penalizacion = 0;
+  for (const pt of palabrasTermino) {
+    const tolerancia = toleranciaErratas(pt.length);
+    if (tolerancia === 0) return 0;
+    let mejor = tolerancia + 1;
+    for (const pn of palabrasNombre) {
+      mejor = Math.min(mejor, distanciaEdicion(pn, pt, tolerancia));
+      if (mejor === 0) break;
+    }
+    if (mejor > tolerancia) return 0; // esta palabra no encaja con ninguna
+    penalizacion += mejor;
+  }
+  // Cuantas mas erratas, mas abajo en la lista, pero siempre por debajo de
+  // cualquier coincidencia literal.
+  return Math.max(1, 40 - penalizacion);
 }
 
 function coincideBusqueda(producto, termino) {
   if (!termino) return true;
-  return configBusqueda().campos.some((campo) =>
-    (producto[campo] || "").toLowerCase().includes(termino)
-  );
+  const cfg = configBusqueda();
+  if (cfg.difuso) return puntuarNombre(producto.nombre, termino) > 0;
+  return cfg.campos.some((campo) => normalizar(producto[campo]).includes(termino));
 }
 
 function productosFiltrados() {
@@ -532,9 +691,25 @@ function marcarModoBusquedaActivo() {
 function resultadosBusqueda() {
   const { termino } = terminoBusqueda();
   if (!termino) return [];
+
+  if (!configBusqueda().difuso) {
+    return state.productos
+      .filter((p) => coincideBusqueda(p, termino))
+      .slice(0, MAX_RESULTADOS);
+  }
+
+  // En modo difuso el orden es parte del resultado: el Enter agrega la fila
+  // resaltada, que es la primera, asi que la mejor coincidencia tiene que
+  // quedar arriba. Y el recorte a MAX_RESULTADOS va DESPUES de ordenar; al
+  // reves se quedarian las primeras del catalogo en vez de las mejores.
   return state.productos
-    .filter((p) => coincideBusqueda(p, termino))
-    .slice(0, MAX_RESULTADOS);
+    .map((producto) => ({ producto, puntaje: puntuarNombre(producto.nombre, termino) }))
+    .filter((r) => r.puntaje > 0)
+    .sort(
+      (a, b) => b.puntaje - a.puntaje || a.producto.nombre.localeCompare(b.producto.nombre)
+    )
+    .slice(0, MAX_RESULTADOS)
+    .map((r) => r.producto);
 }
 
 function abrirResultados() {
@@ -615,16 +790,222 @@ function moverSeleccionResultados(delta) {
   if (activo) activo.scrollIntoView({ block: "nearest" });
 }
 
-/** Agrega la fila indicada (o la resaltada). Devuelve si agrego algo. */
+// ---------- Dialogo de cantidad (teclado numerico en pantalla) ----------
+
+// Resolve de la promesa del dialogo abierto, o null si no hay ninguno.
+// Se guarda aparte para poder contestar desde cualquiera de las vias de
+// cierre: Enter, esc, clic fuera.
+let dialogoCantidadPendiente = null;
+
+/**
+ * Decide si hay que preguntar la cantidad antes de agregar.
+ *
+ * NO se pregunta cuando lo tecleado coincide EXACTO con el codigo o el
+ * codigo de barras del producto: eso es un escaneo, y meter un dialogo ahi
+ * convertiria cada articulo en dos pasos y arruinaria el ritmo de la caja.
+ * Tampoco cuando ya se escribio un multiplicador ("3*aceite"), porque la
+ * cantidad ya viene dicha.
+ */
+function debePreguntarCantidad(producto, termino, cantidadTecleada) {
+  if (cantidadTecleada !== 1) return false;
+  if (!termino) return true;
+  return (
+    termino !== normalizar(producto.codigo) &&
+    termino !== normalizar(producto.codigo_barras)
+  );
+}
+
+/** Abre el dialogo. Resuelve con la cantidad elegida, o null si se cancela. */
+function pedirCantidad(producto, porDefecto) {
+  const dlg = document.getElementById("dialogo-cantidad");
+  const campo = document.getElementById("dialogo-cantidad-input");
+  // Si el dialogo no esta en el documento no se bloquea la venta: se agrega
+  // la cantidad por defecto, que es lo que se hacia antes de existir.
+  if (!dlg || !campo) return Promise.resolve(porDefecto);
+
+  document.getElementById("dialogo-cantidad-producto").textContent = `"${producto.nombre}"`;
+  document.getElementById("dialogo-cantidad-defecto").textContent = formatearCantidad(porDefecto);
+  ocultarErrorCantidad();
+  campo.value = String(porDefecto);
+
+  dlg.hidden = false;
+  // Sin esto barcode.js le devolveria el foco al buscador cada 1,5s y lo
+  // que se teclease acabaria en la barra de busqueda, no en el dialogo.
+  window.barcodeFocus.pausar();
+  campo.focus();
+  campo.select();
+
+  return new Promise((resolve) => {
+    dialogoCantidadPendiente = resolve;
+  });
+}
+
+function cerrarDialogoCantidad(valor) {
+  if (!dialogoCantidadPendiente) return;
+  const resolver = dialogoCantidadPendiente;
+  dialogoCantidadPendiente = null;
+  const dlg = document.getElementById("dialogo-cantidad");
+  if (dlg) dlg.hidden = true;
+  window.barcodeFocus.reanudar();
+  resolver(valor);
+}
+
+function mostrarErrorCantidad(mensaje) {
+  const el = document.getElementById("dialogo-cantidad-error");
+  if (!el) return;
+  el.textContent = mensaje;
+  el.hidden = false;
+}
+
+function ocultarErrorCantidad() {
+  const el = document.getElementById("dialogo-cantidad-error");
+  if (el) el.hidden = true;
+}
+
+/**
+ * Deja en el campo solo lo que puede ser una cantidad: digitos, un unico
+ * punto decimal y un signo menos al principio. La coma se convierte en
+ * punto, porque el bloque numerico de un teclado en español escribe coma.
+ */
+function sanearCantidad(texto) {
+  let t = String(texto).replace(/,/g, ".").replace(/[^0-9.-]/g, "");
+  const negativo = t.startsWith("-");
+  t = t.replace(/-/g, "");
+  const partes = t.split(".");
+  if (partes.length > 1) t = `${partes.shift()}.${partes.join("")}`;
+  return (negativo ? "-" : "") + t;
+}
+
+function confirmarCantidad() {
+  const campo = document.getElementById("dialogo-cantidad-input");
+  if (!campo) return;
+  const valor = Number(campo.value);
+  if (!campo.value.trim() || !Number.isFinite(valor) || valor <= 0) {
+    // Ver la nota del signo menos en index.html: una cantidad negativa
+    // descontaria inventario al reves y no se notaria hasta cuadrar caja.
+    mostrarErrorCantidad("Escribe una cantidad mayor que cero.");
+    return;
+  }
+  cerrarDialogoCantidad(valor);
+}
+
+/**
+ * Unica puerta de entrada de las teclas, se pulsen con el raton o con el
+ * teclado fisico. Las teclas en pantalla llaman aqui con su data-tecla;
+ * los digitos del teclado fisico los escribe el propio <input> y de ese
+ * solo se interceptan Enter y Escape.
+ */
+/**
+ * Escribe respetando el cursor y la seleccion del campo, que es justo lo
+ * que hace el teclado fisico.
+ *
+ * OJO, aqui hubo un fallo: antes esto concatenaba al final
+ * (campo.value + tecla). Como el dialogo abre con la cantidad por defecto
+ * ya escrita y SELECCIONADA, pulsar "2" en la pantalla daba "12" mientras
+ * que teclear "2" en el teclado fisico daba "2". Las dos vias tienen que
+ * comportarse igual: es el requisito con el que se pidio el teclado.
+ */
+function escribirEnCampoCantidad(campo, texto) {
+  const inicio = campo.selectionStart ?? campo.value.length;
+  const fin = campo.selectionEnd ?? campo.value.length;
+  const propuesto = campo.value.slice(0, inicio) + texto + campo.value.slice(fin);
+  campo.value = sanearCantidad(propuesto);
+  // El saneado puede acortar el texto (ej. un segundo punto decimal), asi
+  // que el cursor se limita al largo real que quedo.
+  const pos = Math.min(campo.value.length, inicio + texto.length);
+  campo.setSelectionRange(pos, pos);
+}
+
+/** Borra la seleccion, o el caracter anterior al cursor si no hay ninguna. */
+function borrarEnCampoCantidad(campo) {
+  const inicio = campo.selectionStart ?? campo.value.length;
+  const fin = campo.selectionEnd ?? campo.value.length;
+  if (inicio !== fin) {
+    campo.value = sanearCantidad(campo.value.slice(0, inicio) + campo.value.slice(fin));
+    const pos = Math.min(campo.value.length, inicio);
+    campo.setSelectionRange(pos, pos);
+    return;
+  }
+  if (inicio === 0) return;
+  campo.value = sanearCantidad(campo.value.slice(0, inicio - 1) + campo.value.slice(inicio));
+  const pos = Math.min(campo.value.length, inicio - 1);
+  campo.setSelectionRange(pos, pos);
+}
+
+function pulsarTeclaCantidad(tecla) {
+  const campo = document.getElementById("dialogo-cantidad-input");
+  if (!campo) return;
+  if (tecla === "esc") return cerrarDialogoCantidad(null);
+  if (tecla === "enter") return confirmarCantidad();
+  if (tecla === "borrar") {
+    borrarEnCampoCantidad(campo);
+    ocultarErrorCantidad();
+    return;
+  }
+  escribirEnCampoCantidad(campo, tecla);
+  ocultarErrorCantidad();
+}
+
+function enlazarDialogoCantidad() {
+  const dlg = document.getElementById("dialogo-cantidad");
+  const campo = document.getElementById("dialogo-cantidad-input");
+  if (!dlg || !campo) return;
+
+  dlg.querySelectorAll("[data-tecla]").forEach((btn) => {
+    // mousedown + preventDefault: impide que el boton le robe el foco al
+    // campo, para poder seguir tecleando despues de pulsar con el raton.
+    btn.addEventListener("mousedown", (e) => e.preventDefault());
+    btn.addEventListener("click", () => {
+      pulsarTeclaCantidad(btn.dataset.tecla);
+      campo.focus();
+    });
+  });
+
+  campo.addEventListener("input", () => {
+    campo.value = sanearCantidad(campo.value);
+    ocultarErrorCantidad();
+  });
+
+  campo.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      confirmarCantidad();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cerrarDialogoCantidad(null);
+    }
+  });
+
+  // Clic fuera del panel: cancelar.
+  dlg.addEventListener("mousedown", (e) => {
+    if (e.target === dlg) cerrarDialogoCantidad(null);
+  });
+}
+
+/**
+ * Agrega la fila indicada (o la resaltada). Devuelve "agregado",
+ * "cancelado" o "sin-resultado": onBarcodeScan necesita distinguir un
+ * cancelado de un no-habia-nada, porque en el primer caso NO debe seguir
+ * intentando por los demas caminos y agregar el producto igualmente.
+ */
 async function agregarDesdeResultados(indice) {
   const lista = resultadosBusqueda();
   const producto = lista[indice === undefined ? state.resultadoActivo : indice];
-  if (!producto) return false;
-  const { cantidad } = terminoBusqueda();
-  await agregarItem(producto, cantidad);
+  if (!producto) return "sin-resultado";
+
+  const { termino, cantidad } = terminoBusqueda();
+  let aAgregar = cantidad;
+
+  if (debePreguntarCantidad(producto, termino, cantidad)) {
+    const elegida = await pedirCantidad(producto, 1);
+    if (elegida === null) return "cancelado";
+    aAgregar = elegida;
+  }
+
+  await agregarItem(producto, aAgregar);
   window.barcodeFocus.limpiar();
   cerrarResultados();
-  return true;
+  return "agregado";
 }
 
 function renderProductosGrid() {
@@ -730,6 +1111,10 @@ async function asegurarOrdenActual() {
       : { tipo_orden: "directa", detalles: [] };
 
   state.ordenActual = await api.crearOrden(payload);
+  // Queda registrada como venta en curso de esta caja: es lo que permite
+  // volver a ella desde su pestaña despues de pulsar "Nueva venta".
+  registrarOrdenAbierta(state.ordenActual);
+  renderPestanasOrdenes();
   return state.ordenActual;
 }
 
@@ -742,7 +1127,11 @@ async function agregarItem(producto, cantidad) {
     });
     actualizarTicket();
   } catch (err) {
-    alert(`No se pudo agregar el producto: ${err.message}`);
+    // Toast y no alert(): un dialogo del navegador bloquea la caja, exige
+    // un clic para seguir y le roba el foco al lector de codigo de barras.
+    // El caso mas frecuente aqui es el 409 por stock insuficiente, que el
+    // cajero necesita leer sin que se le pare la venta.
+    mostrarToast(`No se pudo agregar el producto: ${err.message}`, "error");
   }
 }
 
@@ -764,8 +1153,11 @@ async function onBarcodeScan({ codigo, cantidad }) {
   //    codigo deja una unica coincidencia ya resaltada.
   const desplegable = document.getElementById("resultados-busqueda");
   if (desplegable && !desplegable.hidden) {
-    const agregado = await agregarDesdeResultados();
-    if (agregado) return;
+    const estado = await agregarDesdeResultados();
+    // "cancelado" tambien corta: si el cajero cerro el dialogo de cantidad
+    // es porque no queria ese producto, y seguir por los caminos de abajo
+    // lo agregaria igual a sus espaldas.
+    if (estado === "agregado" || estado === "cancelado") return;
   }
 
   const termino = codigo.trim().toLowerCase();
@@ -837,32 +1229,255 @@ function actualizarTicket() {
     total += subtotal;
 
     const tr = document.createElement("tr");
+    // El id de la linea viaja en el DOM: los botones Eliminar y Cantidad
+    // actuan sobre la linea seleccionada, y necesitan saber cual es.
+    tr.dataset.detalleId = linea.id;
     tr.innerHTML = `
       <td>${producto ? producto.nombre : "#" + linea.producto_id}</td>
       <td>${formatearCantidad(cantidad)}</td>
       <td>${formatearMoneda(precio)}</td>
       <td>${formatearMoneda(subtotal)}</td>
     `;
+    tr.addEventListener("click", () => seleccionarLinea(linea.id));
     lineasEl.appendChild(tr);
   });
+
+  // Si la linea seleccionada ya no esta (se quito, o se cambio de venta),
+  // la seleccion se cae: dejarla apuntando a un id fantasma haria que
+  // Eliminar y Cantidad siguieran habilitados sin nada sobre lo que actuar.
+  if (!detalles.some((d) => d.id === state.detalleSeleccionado)) {
+    state.detalleSeleccionado = null;
+  }
 
   if (vacioEl) vacioEl.hidden = detalles.length > 0;
   totalEl.textContent = formatearMoneda(total);
   if (btnCobrar) btnCobrar.disabled = detalles.length === 0;
+  marcarLineaSeleccionada();
+}
+
+// ---------- Linea seleccionada del ticket ----------
+
+function marcarLineaSeleccionada() {
+  document.querySelectorAll("#ticket-lineas tr").forEach((tr) => {
+    tr.classList.toggle(
+      "seleccionada",
+      Number(tr.dataset.detalleId) === state.detalleSeleccionado
+    );
+  });
+
+  const hay = state.detalleSeleccionado !== null;
+  const btnEliminar = document.getElementById("btn-eliminar-linea");
+  const btnCantidad = document.getElementById("btn-cantidad");
+  if (btnEliminar) btnEliminar.disabled = !hay;
+  if (btnCantidad) btnCantidad.disabled = !hay;
+}
+
+/**
+ * Clic sobre una linea: la selecciona, siempre.
+ *
+ * Al principio esto alternaba (volver a pulsar deseleccionaba), y resulto
+ * confuso: el cajero pulsa la linea que quiere quitar, la pulsa otra vez
+ * por costumbre, y se encuentra el boton Eliminar en gris sin entender por
+ * que. La seleccion se suelta sola cuando la linea desaparece o se cambia
+ * de venta, que son los casos en los que estorba.
+ */
+function seleccionarLinea(detalleId) {
+  state.detalleSeleccionado = detalleId;
+  marcarLineaSeleccionada();
+}
+
+function lineaSeleccionada() {
+  const detalles = state.ordenActual?.detalles || [];
+  return detalles.find((d) => d.id === state.detalleSeleccionado) || null;
+}
+
+/** Boton "Eliminar": quita la linea y devuelve su cantidad al inventario. */
+async function eliminarLineaSeleccionada() {
+  const linea = lineaSeleccionada();
+  if (!linea || !state.ordenActual) return;
+  try {
+    state.ordenActual = await api.eliminarDetalle(state.ordenActual.id, linea.id);
+    state.detalleSeleccionado = null;
+    actualizarTicket();
+  } catch (err) {
+    mostrarToast(`No se pudo quitar la linea: ${err.message}`, "error");
+  }
+}
+
+/** Boton "F4 Cantidad": reutiliza el mismo teclado numerico en pantalla. */
+async function cambiarCantidadLineaSeleccionada() {
+  const linea = lineaSeleccionada();
+  if (!linea || !state.ordenActual) return;
+
+  const producto =
+    state.productos.find((p) => p.id === linea.producto_id) || { nombre: "Producto" };
+  const nueva = await pedirCantidad(producto, Number(linea.cantidad));
+  if (nueva === null) return;
+
+  try {
+    state.ordenActual = await api.cambiarCantidadDetalle(
+      state.ordenActual.id,
+      linea.id,
+      nueva
+    );
+    actualizarTicket();
+  } catch (err) {
+    mostrarToast(`No se pudo cambiar la cantidad: ${err.message}`, "error");
+  }
+}
+
+/** Boton "F3 Buscar": el buscador ya esta siempre a mano, asi que basta
+ *  con llevarle el foco y dejar lo tecleado listo para reemplazar. */
+function enfocarBuscador() {
+  const campo = document.getElementById("productos-buscador");
+  if (!campo) return;
+  campo.focus();
+  campo.select();
+}
+
+// ---------- Ventas en paralelo (boton "F8 Nueva venta") ----------
+//
+// Sirven para dejar en espera al cliente que se demora en pagar y atender
+// al siguiente sin perder lo ya registrado. No hace falta nada nuevo en el
+// backend: cada venta es una orden ABIERTA, y el backend ya admite varias a
+// la vez. Lo unico que se guarda aqui son los ids que esta caja tiene a la
+// vista, para poder volver a ellos tras recargar.
+
+const CLAVE_ORDENES_ABIERTAS = "salsa_pos_ordenes_abiertas";
+
+function guardarOrdenesAbiertas() {
+  localStorage.setItem(CLAVE_ORDENES_ABIERTAS, JSON.stringify(state.ordenesAbiertas));
+}
+
+function registrarOrdenAbierta(orden) {
+  if (!orden || state.ordenesAbiertas.includes(orden.id)) return;
+  state.ordenesAbiertas.push(orden.id);
+  guardarOrdenesAbiertas();
+}
+
+function olvidarOrdenAbierta(ordenId) {
+  state.ordenesAbiertas = state.ordenesAbiertas.filter((id) => id !== ordenId);
+  guardarOrdenesAbiertas();
+}
+
+/** Al arrancar, descarta las que ya se cobraron o desaparecieron. */
+async function restaurarOrdenesAbiertas() {
+  let ids = [];
+  try {
+    ids = JSON.parse(localStorage.getItem(CLAVE_ORDENES_ABIERTAS)) || [];
+  } catch (err) {
+    ids = [];
+  }
+
+  const vivas = [];
+  for (const id of ids) {
+    try {
+      const orden = await api.obtenerOrden(id);
+      // El estado puede venir como "abierta" o "ABIERTA" segun se serialice
+      // el enum, asi que se compara sin distinguir mayusculas.
+      if (String(orden.estado).toLowerCase() === "abierta") vivas.push(id);
+    } catch (err) {
+      /* Ya no existe: se cae de la lista sin ruido. */
+    }
+  }
+
+  state.ordenesAbiertas = vivas;
+  guardarOrdenesAbiertas();
+
+  if (vivas.length && !state.ordenActual) {
+    try {
+      state.ordenActual = await api.obtenerOrden(vivas[0]);
+    } catch (err) {
+      /* No se pudo recuperar: se arranca con el ticket vacio. */
+    }
+  }
+}
+
+function renderPestanasOrdenes() {
+  const cont = document.getElementById("pestanas-ordenes");
+  if (!cont) return;
+
+  const entradas = state.ordenesAbiertas.map((id, i) => ({ id, etiqueta: `Venta ${i + 1}` }));
+  // La venta recien empezada todavia no tiene id (el backend crea la orden
+  // al agregar el primer producto), pero necesita su pestaña para que se
+  // vea donde se esta parado.
+  if (!state.ordenActual) {
+    entradas.push({ id: null, etiqueta: `Venta ${entradas.length + 1}` });
+  }
+
+  // Con una sola venta no se dibuja la barra: asi el caso normal queda
+  // exactamente como el original, que no la tiene.
+  if (entradas.length < 2) {
+    cont.innerHTML = "";
+    cont.hidden = true;
+    return;
+  }
+
+  cont.innerHTML = "";
+  entradas.forEach(({ id, etiqueta }) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const activa = id === (state.ordenActual?.id ?? null);
+    btn.className = activa ? "pestana-orden activa" : "pestana-orden";
+    btn.textContent = etiqueta;
+    if (id !== null) btn.addEventListener("click", () => cambiarAOrden(id));
+    cont.appendChild(btn);
+  });
+  cont.hidden = false;
+}
+
+async function cambiarAOrden(ordenId) {
+  if (state.ordenActual?.id === ordenId) return;
+  try {
+    state.ordenActual = await api.obtenerOrden(ordenId);
+  } catch (err) {
+    mostrarToast(`No se pudo abrir esa venta: ${err.message}`, "error");
+    olvidarOrdenAbierta(ordenId);
+  }
+  state.detalleSeleccionado = null;
+  actualizarTicket();
+  renderPestanasOrdenes();
+  window.barcodeFocus.enfocar();
+}
+
+/**
+ * Deja la venta en curso en su pestaña y abre una nueva. Lo registrado NO
+ * se pierde ni se cobra: sigue siendo una orden abierta en el backend, solo
+ * se deja de mirar.
+ */
+function nuevaVenta() {
+  registrarOrdenAbierta(state.ordenActual);
+  state.ordenActual = null;
+  state.detalleSeleccionado = null;
+  actualizarTicket();
+  renderPestanasOrdenes();
+  window.barcodeFocus.enfocar();
 }
 
 async function cobrarOrdenActual() {
   if (!state.ordenActual) return;
   try {
-    await api.pagarOrden(state.ordenActual.id);
+    const pagada = state.ordenActual.id;
+    await api.pagarOrden(pagada);
+    olvidarOrdenAbierta(pagada);
     state.ordenActual = null;
+    state.detalleSeleccionado = null;
+
     if (state.modo === "hospitalidad") {
       volverAMesas();
+      return;
+    }
+
+    // Si quedaban ventas en espera, se pasa a la primera en vez de dejar la
+    // caja en blanco: lo normal tras cobrar es seguir con el que esperaba.
+    if (state.ordenesAbiertas.length) {
+      await cambiarAOrden(state.ordenesAbiertas[0]);
     } else {
       actualizarTicket();
+      renderPestanasOrdenes();
     }
   } catch (err) {
-    alert(`No se pudo cobrar la orden: ${err.message}`);
+    mostrarToast(`No se pudo cobrar la orden: ${err.message}`, "error");
   }
 }
 

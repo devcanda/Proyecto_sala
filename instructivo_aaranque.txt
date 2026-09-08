@@ -1,26 +1,78 @@
-Instructivo para iniciar el proyecto (modo Standalone / SQLite — recomendado para 1 sola caja)
-1. Backend
+INSTRUCTIVO PARA INICIAR EL PROYECTO
+Modo Standalone / SQLite (recomendado para una sola caja)
+=========================================================
+
+Hacen falta DOS terminales: una para el backend y otra para el frontend.
+Dejar las dos abiertas mientras se usa el programa.
 
 
-cd D:\git_antigravity\Proyecto_salsa
-.venv\Scripts\activate
-uvicorn backend.main:app --reload
-El .venv ya quedó preparado y probado; no hace falta reinstalar nada. La API queda en http://127.0.0.1:8000 (documentación interactiva en http://127.0.0.1:8000/docs). El archivo .env ya existe con DB_MODE=sqlite, que es el modo correcto para esto.
+1. BACKEND (primera terminal)
+-----------------------------
 
-2. Frontend (en otra terminal, dejando el backend corriendo)
+    cd D:\git_antigravity\Proyecto_salsa
+    .venv\Scripts\python.exe -m uvicorn backend.main:app --reload
+
+La API queda en http://127.0.0.1:8000
+La documentacion interactiva, en http://127.0.0.1:8000/docs
+
+Se invoca el python del entorno virtual por su ruta completa a proposito,
+en vez de activar el entorno y llamar a "uvicorn" a secas. Asi el arranque
+no depende de que el "activate" surta efecto, que en PowerShell puede
+fallar en silencio y dejar el comando apuntando a otro Python sin las
+librerias del proyecto.
+
+El archivo .env ya existe con DB_MODE=sqlite, que es el modo correcto.
 
 
-cd D:\git_antigravity\Proyecto_salsa
-npx http-server frontend -p 5173
-Abrir http://127.0.0.1:5173 en el navegador. No abrir index.html directamente con doble clic: el frontend carga las vistas por fetch y necesita servirse por HTTP.
+2. FRONTEND (segunda terminal, con el backend ya corriendo)
+-----------------------------------------------------------
 
-3. Para detener: Ctrl+C en cada terminal.
+    cd D:\git_antigravity\Proyecto_salsa
+    npx http-server frontend -p 5173 -c-1
 
-Alternativa: modo Servidor/LAN con Docker (varias cajas en la misma red)
-Requiere tener Docker Desktop abierto primero.
+Abrir http://127.0.0.1:5173 en el navegador.
+
+EL "-c-1" NO ES OPCIONAL. Sin el, http-server envia los archivos con una
+hora de cache y el navegador se queda con la version vieja del programa:
+los cambios "no aparecen" por mas que se recargue, y si unos archivos se
+actualizan y otros no, el programa puede quedar a medias. Ya paso dos
+veces (ver bitacora del README, 2026-09-08).
+
+No abrir index.html con doble clic: las vistas se cargan por fetch y
+necesitan servirse por HTTP.
 
 
-cd D:\git_antigravity\Proyecto_salsa
-copy .env.example .env    # completar POSTGRES_PASSWORD con una clave real
-docker compose up -d --build
+3. PARA DETENER
+---------------
+
+Ctrl+C en cada terminal.
+
+
+SI ALGO NO ARRANCA
+------------------
+
+- La pantalla se ve vieja, a medias, o los botones nuevos no aparecen:
+  es la cache. Detener el frontend, volver a levantarlo CON "-c-1", y
+  recargar el navegador con Ctrl+Shift+R (recarga forzada).
+
+- Abajo a la derecha dice "sin conexion con el backend":
+  el backend no esta corriendo, o esta en otro puerto. Comprobar que la
+  primera terminal siga abierta y que responda http://127.0.0.1:8000/docs
+
+- "El puerto ya esta en uso" al levantar cualquiera de los dos:
+  ya hay una instancia corriendo de antes. Cerrarla, o usar otro puerto.
+
+- Los botones Eliminar o Cantidad fallan:
+  el backend quedo corriendo con una version anterior del codigo.
+  Detenerlo y volver a levantarlo (con --reload no deberia pasar).
+
+
+ALTERNATIVA: MODO SERVIDOR / LAN CON DOCKER
+--------------------------------------------
+Para varias cajas en la misma red. Requiere Docker Desktop abierto.
+
+    cd D:\git_antigravity\Proyecto_salsa
+    copy .env.example .env      (completar POSTGRES_PASSWORD con una clave real)
+    docker compose up -d --build
+
 El backend queda expuesto en el puerto 8000 de la LAN.

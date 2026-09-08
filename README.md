@@ -305,11 +305,20 @@ aquí se muestran así solo para simplificar la guía inicial.
 El frontend carga sus vistas (`views/*.html`) vía `fetch`, por lo que debe
 servirse por HTTP, no abrirse como archivo local:
 ```bash
-npx http-server frontend -p 5173
+npx http-server frontend -p 5173 -c-1
 ```
-Luego abrir `http://127.0.0.1:5173`. El empaquetado final como app de
-escritorio instalable (Tauri/Electron) queda pendiente para una fase
-posterior (ver Backlog).
+Luego abrir `http://127.0.0.1:5173`.
+
+**El `-c-1` no es opcional en desarrollo.** Sin él, `http-server` sirve
+todo con `cache-control: max-age=3600`: el navegador se queda con la
+copia vieja de `style.css` y de las vistas hasta una hora, y los cambios
+"no aparecen" por más que se recargue. Ya pasó una vez (bitácora
+2026-09-08, el tirador del panel de acciones). Si el servidor ya estaba
+levantado sin esa opción, hay que reiniciarlo y forzar una recarga dura
+en el navegador (`Ctrl+Shift+R`).
+
+El empaquetado final como app de escritorio instalable (Tauri/Electron)
+queda pendiente para una fase posterior (ver Backlog).
 
 ## 8. Bitácora de decisiones
 
@@ -985,6 +994,26 @@ posterior (ver Backlog).
   se ilumina al acercar el puntero. La lección para el resto del calco: un
   control que se descubre mirando tiene que leerse sin buscarlo, y eso no
   lo cubre ninguna prueba funcional.
+- **Y otra corrección encima:** con el agarre ya visible se vio que el
+  último círculo salía cortado por la mitad. El patrón de puntos se repite
+  en vertical, así que el alto tiene que ser múltiplo exacto del paso, y
+  28px sobre un paso de 8px dejaban tres puntos y medio. Ahora el alto se
+  calcula desde el paso (`calc(var(--paso-punto) * 3)`), de forma que no
+  puede volver a descuadrarse si alguien toca una de las dos medidas.
+- **La causa de fondo de todo el episodio era la caché.** El servidor de
+  desarrollo se estaba levantando sin `-c-1`, así que `http-server` servía
+  todo con `cache-control: max-age=3600` y el navegador se quedaba con la
+  hoja de estilos vieja hasta una hora: los cambios "no aparecían" por más
+  que se recargara. Se corrigió la instrucción de la sección 7, que era la
+  que omitía la opción.
+  **Reincidencia el mismo día:** solo se corrigió la sección 7 del README y
+  se dejó sin tocar `instructivo_aaranque.txt`, que es el archivo que el
+  desarrollador sigue de verdad y que repetía el comando sin `-c-1`. Volvió
+  a dar problemas al arrancar. Ese archivo se reescribió: además de la
+  opción, ahora invoca el Python del entorno por ruta completa (para no
+  depender de que el `activate` surta efecto en PowerShell) y trae una
+  sección de qué hacer si algo no arranca. Corregir la documentación en un
+  sitio y no en el otro sale más caro que no corregirla.
 - **Sin teclado a propósito.** No se le puso `tabindex`: `barcode.js`
   devuelve el foco al buscador cada 1,5s salvo que se esté escribiendo en
   otro campo, así que un control enfocable que no es un campo de texto
@@ -1001,6 +1030,348 @@ posterior (ver Backlog).
   SKU-033`), los impuestos aparecen calculados de verdad, "Guardar venta"
   lleva un contador en rojo y el botón de cliente muestra un número. Nada
   de eso se tocó en este paso.
+
+### 2026-09-08 — Se quita el catálogo táctil de Retail (revierte la decisión del 07)
+
+- El desarrollador marcó en rojo la banda central del panel de acciones y
+  pidió despejarla: ni productos ni categorías ahí.
+- **Esto revierte una decisión explícita del 2026-09-07**, cuando se acordó
+  conservar la grilla de productos clicables aunque la Aronium real no la
+  tenga, por considerarla mejor para un mostrador táctil. Lo que cambió
+  desde entonces es que el buscador ya tiene motor propio (bitácora de hoy):
+  con sus cuatro modos y el desplegable de resultados, encontrar un producto
+  por nombre, código o código de barras ya no depende de la grilla. La
+  grilla era la única alternativa al lector; ahora no lo es.
+- **Qué se quitó**: `#categorias-tabs` y `#productos-grid` de
+  `views/pos_retail.html`. En su lugar queda un hueco vacío, como en el
+  original (donde va la marca de agua del logo de Aronium, que no se
+  reproduce por ser marca ajena).
+- **El hueco no es decorativo.** Es el separador flexible que empuja el
+  grupo de botones inferior contra el fondo del panel. Sin un elemento que
+  ocupe esa banda, los botones de abajo suben y se pegan a la fila de
+  métodos de pago, que es justo lo que el original no hace.
+- **Sin cambios en el JavaScript.** `renderProductosGrid()` y
+  `renderCategoriasTabs()` ya salían sin hacer nada si no encontraban sus
+  elementos, así que devolver la grilla a Retail es volver a poner el
+  marcado y nada más. La grilla sigue viva en Hospitalidad, que todavía no
+  tiene desplegable de resultados.
+- **`scripts/verificar_contrato_dom.py` ganó una lista de ids opcionales.**
+  `#categorias-tabs` ahora no existe en ninguna vista pero el JS lo sigue
+  consultando, siempre con guarda, para saber si está. Sin esa lista el
+  verificador lo reportaría como huérfano y la comprobación perdería valor
+  a fuerza de dar falsas alarmas. No es una vía para silenciar huérfanos de
+  verdad: cada entrada tiene que explicar por qué el JS sobrevive a su
+  ausencia, y solo entran ids que se consultan con guarda.
+- **Efecto secundario corregido**: el mensaje de ticket vacío mandaba a
+  "tocar uno del catálogo de la derecha", que ya no existe en esa pantalla.
+  Ahora nombra las dos vías reales: escanear o buscar en la barra de arriba.
+- **Verificación.** Contrato del DOM en verde, con `#categorias-tabs`
+  listado aparte como opcional ausente. Las baterías del tirador y del
+  buscador siguen pasando enteras.
+
+### 2026-09-08 — Búsqueda difusa (tolerante a erratas) en el modo "por nombre"
+
+- Pedido del desarrollador: que escribir `salchica` encuentre igual
+  `Salchicha`, es decir tolerancia a errores de tecleo, y solo cuando el
+  modo "Buscar producto por nombre" está activo.
+- **Dónde vive y por qué.** Se implementó en `frontend/js/app.js`, no en el
+  backend de Python. El catálogo completo ya está en memoria en el
+  navegador (`state.productos`, cargado una sola vez al arrancar) y toda la
+  búsqueda actual es local, así que comparar ahí es instantáneo y no cuesta
+  una petición por tecla. Llevarlo al backend obligaría a cruzar la red en
+  cada pulsación, que en modo Standalone sería un ida y vuelta innecesario
+  y en modo Red LAN se notaría; además partiría la búsqueda en dos sitios,
+  con el modo nombre en el servidor y los demás en el cliente. Si en algún
+  momento conviene centralizarlo (varios clientes, catálogos enormes), el
+  sitio natural sería un endpoint en `inv_router.py`.
+- **Solo el modo nombre.** Los modos de código NO llevan búsqueda difusa, y
+  es deliberado: aproximar un código de barras metería en la venta un
+  producto distinto del que se escaneó, y nadie lo notaría hasta cuadrar la
+  caja. Un código o coincide exacto o no coincide.
+- **Cómo puntúa.** Por niveles, de más literal a más aproximado: nombre
+  exacto, empieza por lo tecleado, alguna palabra empieza por lo tecleado,
+  lo contiene, y por último lo difuso. Lo escrito bien siempre gana a una
+  errata. El desplegable ordena por esa puntuación, cosa que aquí no es
+  cosmética: el Enter agrega la fila resaltada, que es la primera, así que
+  la mejor coincidencia tiene que quedar arriba. El recorte a las 40 filas
+  se hace **después** de ordenar; al revés se quedarían las primeras del
+  catálogo en vez de las mejores.
+- **Se compara palabra por palabra, no contra el nombre entero.** Es lo que
+  hace que funcione el caso pedido: `salchica` está a una letra de
+  `salchicha`, pero a más de diez de `Salchicha Ranchera (Paquete)`, que es
+  el nombre real del producto.
+- **La tolerancia crece con lo tecleado**: 0 erratas por debajo de 4
+  letras, 1 hasta 6, 2 hasta 9, y 3 de ahí en adelante. Sin ese mínimo,
+  con dos o tres letras casi cualquier palabra se parece a casi cualquier
+  otra y el desplegable se llenaría de ruido justo cuando el operario
+  empieza a escribir.
+- La distancia de edición es un Levenshtein **con tope**, que abandona en
+  cuanto sabe que no va a servir. Es lo que mantiene barato recalcularlo en
+  cada tecla.
+- **De paso, se ignoran los acentos en todos los modos.** En el mostrador
+  nadie escribe "Azúcar" con tilde, y sin esto ese producto no aparecía. La
+  "ñ" también se normaliza, así que "piña" y "pina" encuentran lo mismo.
+- **Coste medido** (una búsqueda completa sobre el catálogo, por tecla):
+
+  | Productos | Tiempo |
+  |---|---|
+  | 58 (catálogo actual) | 0,4 ms |
+  | 500 | 2,1 ms |
+  | 2.000 | 3,3 ms |
+  | 10.000 | 14,7 ms |
+
+  Incluso con diez mil productos se mantiene por debajo del fotograma de
+  16 ms, así que no hace falta ni retardar la búsqueda mientras se teclea.
+- **Verificación.** Prueba nueva con 8 comprobaciones: el caso `salchica`,
+  otras tres erratas típicas (letra de más, letra cambiada, letras
+  transpuestas), el acento ausente, que el nombre exacto queda primero, que
+  con tres letras no se cuela nada aproximado, que el modo "todos" sigue
+  sin difuso, que el Enter agrega la mejor aproximación, y el coste por
+  tecla. Las tres baterías anteriores (buscador, lector/navegación y
+  tirador) siguen en verde, y el contrato del DOM también.
+
+### 2026-09-08 — Diálogo de cantidad con teclado numérico en pantalla
+
+- Pedido: al elegir un producto en el buscador debe aparecer un teclado
+  numérico para indicar la cantidad, y tiene que servir tanto pulsándolo
+  como con el teclado físico.
+- **Dónde vive.** `#dialogo-cantidad` está en `index.html`, no en una
+  vista: es un diálogo global y `app.js` lo enlaza una sola vez al
+  arrancar, igual que el botón de los tres puntos.
+- **Una sola puerta de entrada para las teclas.** `pulsarTeclaCantidad()`
+  atiende a las teclas de la pantalla (por su `data-tecla`). Los dígitos
+  del teclado físico los escribe directamente el `<input>`, que es real y
+  está enfocado, y de él solo se interceptan Enter y Escape. Así las dos
+  vías se comportan igual sin duplicar lógica.
+- **`barcodeFocus.pausar()` mientras está abierto.** Sin eso `barcode.js`
+  le devolvería el foco al buscador cada 1,5 segundos y lo que se tecleara
+  en el diálogo acabaría en la barra de búsqueda. Al cerrar se reanuda.
+- **Cuándo NO se pregunta la cantidad**, que es la parte delicada:
+  1. Cuando lo tecleado coincide **exacto** con el código o el código de
+     barras del producto. Eso es un escaneo, y meter un diálogo ahí
+     convertiría cada artículo en dos pasos y arruinaría el ritmo de caja.
+  2. Cuando ya se escribió un multiplicador (`3*aceite`): la cantidad ya
+     viene dicha.
+- **`agregarDesdeResultados()` pasó a devolver tres estados** (`agregado`,
+  `cancelado`, `sin-resultado`) en vez de un booleano. `onBarcodeScan()`
+  necesita distinguir un cancelado de un no-había-nada: con el booleano
+  anterior, cancelar el diálogo hacía que siguiera intentando por los otros
+  caminos y el producto acababa agregado igual, a espaldas del cajero.
+- **Admite decimales**, que es lo que necesitaban los productos por peso.
+  Cubre en parte el pendiente del backlog sobre capturar el peso exacto.
+  La coma se normaliza a punto, porque el bloque numérico de un teclado en
+  español escribe coma.
+- **El signo menos existe** (está en el original) pero confirmar una
+  cantidad que no sea mayor que cero se rechaza con un aviso: una cantidad
+  negativa descontaría inventario al revés y no se notaría hasta cuadrar la
+  caja.
+- **Verificación.** Prueba nueva con 11 comprobaciones: elegir por nombre
+  abre el diálogo y no agrega solo, nombra el producto, el lector no le
+  roba el foco, las teclas de pantalla escriben y borran, el Enter de
+  pantalla confirma, el teclado físico escribe y confirma, los decimales
+  entran, Escape cancela sin agregar, una cantidad de cero se rechaza con
+  aviso, escanear un código **no** abre el diálogo, y el multiplicador
+  tampoco.
+
+### 2026-09-08 — Incidente: las pruebas end-to-end consumían inventario real
+
+- Se descubrió mientras se probaba el diálogo de cantidad, al aparecer un
+  409 del backend. **`pos_router.py` descuenta el inventario al AGREGAR la
+  línea a la orden** (`descontar_inventario_por_venta`, línea 80), no al
+  cobrar. Como las pruebas automáticas agregan productos, cada ejecución
+  consumía stock de verdad en la base de desarrollo y dejaba la orden
+  abierta sin cobrar.
+- **Daño medido** en `backend/data/salsa_pos.db`: 20 órdenes abiertas, y
+  este consumo acumulado.
+
+  | Producto | Consumido | Stock restante |
+  |---|---|---|
+  | Chorizo Santarrosano | 76,5 | 0,5 |
+  | Aguacate Hass | 9 | 35 y 14 |
+  | Aceite Girasol | 7 | 120 |
+  | Salchicha ranchera | 2 | 7 |
+  | Queso Campesino, Queso crema, Domicilio | 1 cada uno | — |
+
+  El grueso es de las pruebas, que siempre elegían el primer producto con
+  código de barras del catálogo.
+- **Corregido.** Las pruebas ya no tocan la base de desarrollo: corren
+  contra un segundo backend en el puerto 8001 con su propio archivo
+  SQLite (`backend/data/pruebas_e2e.db`, ya ignorado por `.gitignore`) y un
+  catálogo fijo de 8 productos con stock de sobra. Al navegador se le
+  indica ese backend con `window.SALSA_POS_API_BASE_URL`, un enganche que
+  `frontend/js/api.js` ya traía previsto. De paso las pruebas dejan de
+  depender de qué haya en la base de desarrollo, que era otra fragilidad.
+
+      DB_MODE=sqlite SQLITE_DB_NAME=pruebas_e2e.db \
+        python -m uvicorn backend.main:app --port 8001
+
+- **Queda pendiente decidir qué hacer con lo ya consumido.** Borrar las 20
+  órdenes abiertas y devolver el stock es una operación destructiva sobre
+  datos del cliente, así que no se hizo por cuenta propia. Además hoy no
+  hay endpoint para anular una orden abierta: ya estaba en el backlog
+  ("cancelar la venta sin cobrar"), y este incidente lo vuelve más urgente.
+
+### 2026-09-08 — Dos correcciones del diálogo de cantidad
+
+El desarrollador reportó que al poner "2" con el teclado en pantalla salía
+un aviso de stock insuficiente, y lo atribuyó a un fallo de lógica. Al
+revisarlo resultaron ser **dos cosas distintas**, una de ellas real.
+
+- **El aviso en sí era correcto.** `Chorizo Santarrosano` tenía 0,5
+  unidades en la base de desarrollo, así que pedir 2 deja un faltante de
+  1,5, que es exactamente lo que decía el mensaje (el backend lo imprime
+  como `1.500` porque los lotes guardan tres decimales). El stock estaba en
+  0,5 por el incidente de las pruebas del mismo día, no por el teclado.
+- **Pero había un fallo de verdad, y era del teclado en pantalla.** El
+  diálogo abre con la cantidad por defecto escrita **y seleccionada**. El
+  teclado físico reemplaza esa selección, como cualquier campo de texto,
+  pero las teclas en pantalla concatenaban al final (`campo.value + tecla`),
+  así que pulsar "2" daba `12` en vez de `2`. Las dos vías se comportaban
+  distinto, que es justo lo contrario del requisito con el que se pidió el
+  teclado. Ahora escriben respetando cursor y selección
+  (`escribirEnCampoCantidad` / `borrarEnCampoCantidad`).
+- **Por qué no lo cazó la prueba.** El paso que probaba las teclas pulsaba
+  "borrar" antes de escribir, con lo que nunca ejercitaba el caso real: el
+  valor por defecto seleccionado más un dígito. La prueba se amplió para
+  comprobar que la primera tecla **reemplaza** y que las siguientes
+  encadenan, además de la tecla de borrar por separado.
+- **El aviso pasó de `alert()` a toast.** En la captura se veía un diálogo
+  del navegador ("127.0.0.1:5173 dice"). Un diálogo modal bloquea la caja,
+  exige un clic para continuar y le roba el foco al lector de código de
+  barras. El caso más frecuente ahí es precisamente el 409 por stock
+  insuficiente, que el cajero necesita leer sin que se le detenga la venta.
+  Solo se cambió el de `agregarItem()`, que es el del flujo de venta; los
+  `alert()` de los formularios de administración siguen igual por ahora.
+
+### 2026-09-08 — Escala y proporciones ajustadas contra la captura de referencia
+
+- Pedido: que la distribución visual y los tamaños queden como en la
+  captura del original.
+- **Se midió en vez de estimarse.** Se renderizó nuestra pantalla a la
+  misma resolución que la captura (1920) y se compararon las cajas reales
+  elemento por elemento. Todo salió comprimido respecto al original.
+- **La raíz tipográfica estaba mal.** Los 14px que se eligieron a ojo el
+  mismo día (para quitarle el aire de página web) se pasaron de compresión:
+  las etiquetas de los botones medían 10,9px contra 13px del original, y
+  los nombres de producto 12,6px contra 15px. Los dos desfases dan el mismo
+  factor, así que se corrigió subiendo la raíz a **16,5px** en vez de tocar
+  tamaño por tamaño. Como toda la hoja está en `rem`, eso reescala la
+  interfaz entera de forma proporcional, incluidas las pantallas de
+  administración.
+- **El panel de acciones era lo más desviado**: 378px contra 643px. Y el
+  error de fondo era conceptual: lo teníamos como ancho fijo en `rem`,
+  cuando en el original es una **proporción de la ventana** (643 de 1920 =
+  33,5%). Ahora es `clamp(22rem, 33.5vw, 44rem)`, con el `clamp` para que
+  no se quede sin sitio en pantallas pequeñas ni se coma media pantalla en
+  las muy anchas. El tirador lo sigue pudiendo sobreescribir.
+- **Las filas del panel no comparten altura en el original.** Son tres
+  valores distintos: la fila superior es más alta (acciones de cabecera) y
+  la de métodos de pago más baja. Antes usábamos uno solo para las tres, y
+  por eso el panel se veía más plano que el original.
+- **Resultado**, medido a 1920:
+
+  | Elemento | Antes | Ahora | Referencia |
+  |---|---|---|---|
+  | Barra superior | 41 | 55 | 55 |
+  | Cabecera del ticket | 27 | 33 | 33 |
+  | Ancho del panel | 378 | 643 | 643 |
+  | Celda de la fila superior | 66 | 102 | 102 |
+  | Celda de métodos de pago | 43 | 63 | 63 |
+  | Celdas de las filas bajas | 66 | 72 | 72 |
+  | Fuente del TOTAL | 18,9 | 26 | 26 |
+  | Fuente del nombre de producto | 12,6 | 15 | 15 |
+  | Fuente de la etiqueta de acción | 10,9 | 13 | 13 |
+
+- **Queda una diferencia, y es de contenido, no de tamaño**: la fila del
+  ticket mide 35px contra los 48px del original. La diferencia es exacta:
+  en el original cada línea lleva una **segunda línea de detalle**
+  (`#1 14:35 SKU: SKU-033`). De esos tres datos tenemos el SKU
+  (`producto.codigo`) y el número de línea se deduce del orden, pero **la
+  hora no existe**: `OrdenDetalle` no guarda ninguna marca de tiempo
+  (ver `backend/models/pos.py`). Añadirla es un cambio de esquema con su
+  migración, así que se deja para decidirlo.
+- **Efecto secundario**: el tope máximo del tirador subió de 640 a 900px,
+  porque con el ancho de fábrica en 643 el tope anterior impedía siquiera
+  igualarlo arrastrando.
+- **Verificación.** Las cinco baterías de pruebas y el contrato del DOM
+  siguen en verde. La prueba del tirador se actualizó al nuevo ancho de
+  fábrica, que ahora depende del tamaño de la ventana.
+
+### 2026-09-08 — Botones con lógica: Eliminar, Buscar, Cantidad y Nueva venta
+
+Primeros botones del panel de acciones que dejan de ser decorativos.
+
+**Backend (nuevo).** Hasta ahora una línea del ticket solo se podía agregar.
+Como el inventario se descuenta al AGREGAR y no al cobrar, todo aquello de
+lo que el cliente se arrepintiera quedaba descontado para siempre. Se
+añadieron dos endpoints en `pos_router.py`:
+
+| Endpoint | Qué hace con el inventario |
+|---|---|
+| `DELETE /pos/ordenes/{id}/detalles/{detalle_id}` | Devuelve la cantidad completa |
+| `PUT /pos/ordenes/{id}/detalles/{detalle_id}` | Mueve solo la **diferencia** |
+
+Los dos validan que la orden siga abierta y que la línea sea de esa orden;
+sin esa segunda comprobación se podría borrar la línea de otra orden pasando
+su id en la ruta. Subir de 2 a 5 descuenta 3 y puede fallar con 409 por
+stock; bajar de 5 a 2 devuelve 3.
+
+- **`reponer_inventario_por_devolucion()` en `services/ventas.py`**, inverso
+  de `descontar_inventario_por_venta()`. Respeta las mismas dos reglas: los
+  servicios no mueven inventario y los compuestos expanden su receta.
+- **Limitación conocida y asumida**: no se registra de qué lote salió cada
+  venta, así que una devolución no se puede imputar con exactitud al lote
+  original. Se devuelve al lote más antiguo con existencia, que es el que
+  FIFO habría consumido primero; para el caso real de este botón (deshacer
+  una línea recién agregada) coincide siempre. Solo puede desviar la
+  atribución de costo si la venta original vació un lote y siguió en el
+  siguiente, y se deshace mucho después. Revertir exacto exige guardar los
+  lotes consumidos por línea, que queda en el backlog.
+
+**Frontend.**
+
+- **Selección de línea**: al pulsar una línea del ticket queda resaltada, y
+  Eliminar y Cantidad se habilitan. Sin selección están en gris, porque no
+  tienen sobre qué actuar. La selección se suelta sola cuando la línea
+  desaparece o se cambia de venta.
+- **Al principio la selección alternaba** (volver a pulsar deseleccionaba) y
+  la propia prueba lo destapó: el cajero pulsa la línea, la vuelve a pulsar
+  por costumbre y se encuentra Eliminar en gris sin entender por qué. Ahora
+  pulsar siempre selecciona.
+- **Cantidad** reutiliza el mismo teclado numérico en pantalla del diálogo
+  ya existente, precargado con la cantidad **actual** de la línea, no con 1.
+- **Buscar** lleva el foco al buscador y deja lo tecleado seleccionado para
+  reemplazarlo de una vez.
+- **Nueva venta** abre ventas en paralelo, para dejar en espera al cliente
+  que se demora y atender al siguiente. No hizo falta nada nuevo en el
+  backend: cada venta es una orden abierta y el backend ya admitía varias a
+  la vez. Lo registrado no se pierde ni se cobra, solo se deja de mirar.
+  Los ids de las ventas de esta caja se guardan en `localStorage`, así que
+  sobreviven a recargar; al arrancar se descartan las que ya se cobraron.
+- **La barra de pestañas solo aparece con más de una venta abierta**, de
+  modo que el caso normal se ve exactamente como el original. **Es una
+  adición nuestra**: el Aronium real no tiene pestañas, resuelve lo mismo
+  aparcando la venta con F9 y recuperándola de una lista (de ahí el
+  contador rojo sobre "Guardar venta" en las capturas).
+- **Atajos F3, F4 y F8** conectados, porque están escritos en los propios
+  botones. F3 se anula en el navegador (abriría su buscador) y los tres se
+  ignoran mientras el diálogo de cantidad está abierto.
+- Al cobrar, si quedaban ventas en espera se pasa a la primera en vez de
+  dejar la caja en blanco. El aviso de error al cobrar también pasó de
+  `alert()` a toast.
+
+- **Verificación.** Endpoints probados directamente contra la API: agregar
+  10, bajar a 4, subir a 7 y eliminar deja el stock **exactamente** en el
+  valor inicial. Prueba nueva de interfaz con 10 comprobaciones: botones en
+  gris sin selección, la selección los habilita, Cantidad precarga la
+  cantidad actual, bajarla repone inventario, Eliminar quita la línea y
+  repone el resto, Buscar enfoca, Nueva venta abre una segunda pestaña
+  vacía e independiente, volver a la primera recupera su ticket, y los
+  atajos responden. Las cinco baterías anteriores y el contrato del DOM
+  siguen en verde.
+
+- **OJO al desplegar**: el backend de desarrollo hay que reiniciarlo para
+  que tome los endpoints nuevos; sin eso, Eliminar y Cantidad responden 405.
 
 ## 9. Backlog / próximas fases
 
@@ -1056,3 +1427,24 @@ posterior (ver Backlog).
       hoy sólo tiene el campo de búsqueda (bitácora 2026-09-08).
 - [ ] Correr `scripts/verificar_contrato_dom.py` como hook de pre-commit,
       en vez de a mano.
+- [ ] Si vuelve a hacer falta la grilla táctil en Retail (bitácora
+      2026-09-08), es solo devolver `#categorias-tabs` y `#productos-grid`
+      al marcado de la vista: la lógica que los dibuja sigue intacta.
+- [ ] Limpiar las 20 órdenes abiertas y restituir el inventario que
+      consumieron las pruebas (bitácora 2026-09-08). Requiere decidirlo con
+      el cliente: es una corrección manual sobre datos existentes.
+- [ ] Endpoint para anular una orden abierta devolviendo el stock. El
+      incidente de las pruebas lo dejó en evidencia: hoy no hay forma de
+      deshacer una venta empezada.
+- [ ] Llevar las pruebas end-to-end al repositorio (hoy viven fuera) junto
+      al script que siembra la base desechable, para que cualquiera pueda
+      ejecutarlas.
+- [ ] Sustituir por toast los `alert()` que quedan en los formularios de
+      administración (Productos, Inventario, Configuración, mesas), como ya
+      se hizo con el del flujo de venta (bitácora 2026-09-08).
+- [ ] Segunda línea de detalle en cada renglón del ticket (número de línea,
+      hora y SKU), como en el original. Requiere añadir una marca de tiempo
+      a `OrdenDetalle` y su migración (bitácora 2026-09-08).
+- [ ] Guardar los lotes consumidos por cada línea de venta, para poder
+      revertir una devolución con exactitud en vez de aproximarla al lote
+      más antiguo (bitácora 2026-09-08).

@@ -123,6 +123,15 @@
     </div>
   </header>
 
+  <!--
+    Pestañas de ventas en paralelo (boton "F8 Nueva venta"). Permiten dejar
+    en espera al cliente que se demora y atender al siguiente sin perder lo
+    ya registrado. Solo se muestran cuando hay mas de una venta abierta,
+    para que el caso normal se vea exactamente como el original, que no
+    tiene esta barra. La llena renderPestanasOrdenes() en app.js.
+  -->
+  <div id="pestanas-ordenes" class="pestanas-ordenes" hidden></div>
+
   <div class="pos-retail__cuerpo">
     <main class="pos-retail__ticket">
       <div class="tabla-ticket-scroll">
@@ -139,10 +148,13 @@
         </table>
       </div>
 
+      <!-- El texto cambio al quitarse el catalogo (2026-09-08): mandaba a
+           "tocar el catalogo de la derecha", que ya no existe en esta
+           pantalla. Ahora nombra las dos vias que quedan de verdad. -->
       <p id="ticket-vacio" class="ticket-vacio-msg">
         <strong>No hay artículos</strong>
-        Agregue productos a la orden escaneando un código de barras o tocando
-        uno del catálogo de la derecha.
+        Agregue productos a la orden escaneando un código de barras o
+        buscándolos en la barra de arriba.
       </p>
 
       <div class="pos-retail__totales">
@@ -180,22 +192,27 @@
     </div>
 
     <aside class="pos-retail__acciones">
-      <div class="acciones-grid">
-        <button type="button" class="btn-accion" disabled>
+      <!-- --principal: en el original esta primera fila es mas alta que
+           las de abajo (102px contra 72px a 1920). -->
+      <div class="acciones-grid acciones-grid--principal">
+        <!-- Eliminar y Cantidad arrancan deshabilitados: actuan sobre la
+             linea seleccionada del ticket, y al abrir no hay ninguna.
+             app.js los habilita al seleccionar (ver marcarLineaSeleccionada). -->
+        <button type="button" class="btn-accion" id="btn-eliminar-linea" disabled>
           <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-cerrar" /></svg>
           <span class="btn-accion__texto">Eliminar</span>
         </button>
-        <button type="button" class="btn-accion">
+        <button type="button" class="btn-accion" id="btn-buscar">
           <span class="btn-accion__tecla">F3</span>
           <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-buscar" /></svg>
           <span class="btn-accion__texto">Buscar</span>
         </button>
-        <button type="button" class="btn-accion">
+        <button type="button" class="btn-accion" id="btn-cantidad" disabled>
           <span class="btn-accion__tecla">F4</span>
           <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-cantidad" /></svg>
           <span class="btn-accion__texto">Cantidad</span>
         </button>
-        <button type="button" class="btn-accion">
+        <button type="button" class="btn-accion" id="btn-nueva-venta">
           <span class="btn-accion__tecla">F8</span>
           <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-mas" /></svg>
           <span class="btn-accion__texto">Nueva venta</span>
@@ -217,12 +234,21 @@
         </button>
       </div>
 
-      <!-- Catalogo tactil. Ocupa la banda que en Aronium queda vacia con la
-           marca de agua del logo. -->
-      <div class="pos-retail__catalogo">
-        <div id="categorias-tabs" class="categorias-tabs"></div>
-        <div id="productos-grid" class="grid-productos"></div>
-      </div>
+      <!--
+        Banda vacia, igual que en el original (donde va la marca de agua
+        del logo de Aronium, que no se reproduce por ser marca ajena).
+
+        Aqui vivia el catalogo tactil (#categorias-tabs + #productos-grid)
+        hasta que el desarrollador pidio despejar la zona el 2026-09-08.
+        No es solo decorativo: sirve de separador flexible, y es lo que
+        mantiene el grupo de botones de abajo anclado al fondo del panel.
+
+        Los dos elementos que se quitaron siguen existiendo en
+        views/pos_hospitalidad.html, y tanto renderProductosGrid() como
+        renderCategoriasTabs() salen sin hacer nada si no los encuentran,
+        asi que devolverlos aqui es volver a poner el marcado y nada mas.
+      -->
+      <div class="pos-retail__hueco" aria-hidden="true"></div>
 
       <div class="acciones-grid">
         <button type="button" class="btn-accion">

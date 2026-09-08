@@ -35,6 +35,19 @@ FRONTEND = RAIZ / "frontend"
 
 # Selectores que el JS usa por clase/atributo en vez de por id. No se pueden
 # deducir automaticamente sin un parser real, asi que se listan explicitamente.
+# Ids que el JS consulta A PROPOSITO para saber si existen, y que pueden no
+# estar en ninguna vista sin que eso sea un error. Van aqui solo si el JS los
+# busca SIEMPRE con guarda (if (!el) return, o !!document.getElementById()).
+# No es una via para silenciar huerfanos de verdad: cada entrada explica por
+# que el JS sobrevive a su ausencia.
+IDS_OPCIONALES = {
+    "categorias-tabs": (
+        "las pestañas de categoria se quitaron de Retail el 2026-09-08 y solo "
+        "quedan en Inventario con otro id; renderCategoriasTabs() y "
+        "productosFiltrados() ya salen sin hacer nada cuando no estan"
+    ),
+}
+
 ENGANCHES_POR_CLASE = [
     (r'class="[^"]*\bseccion-btn\b[^"]*"[^>]*data-seccion=', ".seccion-btn[data-seccion]"),
     (r'data-seccion="[^"]*"[^>]*class="[^"]*\bseccion-btn\b', ".seccion-btn[data-seccion]"),
@@ -81,10 +94,12 @@ def main():
 
     problemas = []
 
-    huerfanos = sorted(set(referencias) - set(definidos))
+    huerfanos = sorted(set(referencias) - set(definidos) - set(IDS_OPCIONALES))
     for id_huerfano in huerfanos:
         origen = ", ".join(referencias[id_huerfano])
         problemas.append(f"  #{id_huerfano} -- lo busca {origen}, no existe en ningun HTML")
+
+    opcionales_ausentes = sorted(set(IDS_OPCIONALES) - set(definidos))
 
     html_completo = "\n".join(
         archivo.read_text(encoding="utf-8")
@@ -114,6 +129,11 @@ def main():
     print(f"Ids buscados por el JS : {len(referencias)}")
     print(f"Ids definidos en el HTML: {len(definidos)}")
     print(f"Huerfanos               : {len(huerfanos)}")
+
+    if opcionales_ausentes:
+        print("\nOpcionales ausentes (declarados como tales, no son huerfanos):")
+        for id_opcional in opcionales_ausentes:
+            print(f"  #{id_opcional}: {IDS_OPCIONALES[id_opcional]}")
 
     if duplicados:
         print("\nAviso -- ids repetidos en mas de un archivo (solo importa si dos")

@@ -106,6 +106,15 @@ const api = {
   crearOrden: (payload) => apiRequest("/pos/ordenes", { method: "POST", body: payload }),
   agregarDetalle: (ordenId, payload) =>
     apiRequest(`/pos/ordenes/${ordenId}/detalles`, { method: "POST", body: payload }),
+  // Quitar una linea devuelve su cantidad al inventario, y cambiarla mueve
+  // solo la diferencia: el descuento ocurre al agregar, no al cobrar.
+  eliminarDetalle: (ordenId, detalleId) =>
+    apiRequest(`/pos/ordenes/${ordenId}/detalles/${detalleId}`, { method: "DELETE" }),
+  cambiarCantidadDetalle: (ordenId, detalleId, cantidad) =>
+    apiRequest(`/pos/ordenes/${ordenId}/detalles/${detalleId}`, {
+      method: "PUT",
+      body: { cantidad },
+    }),
   pagarOrden: (ordenId) => apiRequest(`/pos/ordenes/${ordenId}/pagar`, { method: "POST" }),
   obtenerOrden: (ordenId) => apiRequest(`/pos/ordenes/${ordenId}`),
 };

@@ -111,6 +111,87 @@
     <span class="topbar__status" id="connection-status">● conectando...</span>
   </footer>
 
+  <!--
+    Dialogo de cantidad con teclado numerico en pantalla (calco del
+    2026-09-08). Se abre al elegir un producto en el buscador y sirve tanto
+    a dedo/raton como con el teclado fisico: el campo es un <input> de
+    verdad y esta enfocado, asi que tecleando se escribe directo.
+
+    Vive aqui, en el HTML estatico, y no en una vista: es un dialogo global
+    y app.js lo enlaza una sola vez al arrancar.
+
+    OJO: mientras esta abierto, app.js llama a barcodeFocus.pausar(). Sin
+    eso, barcode.js le devolveria el foco al buscador cada 1,5s y lo que se
+    teclease en el dialogo acabaria en la barra de busqueda.
+  -->
+  <div
+    id="dialogo-cantidad"
+    class="dialogo-cantidad"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dialogo-cantidad-titulo"
+    hidden
+  >
+    <div class="dialogo-cantidad__panel">
+      <h2 id="dialogo-cantidad-titulo" class="dialogo-cantidad__titulo">Cambiar cantidad</h2>
+      <p class="dialogo-cantidad__texto">
+        Producto <span id="dialogo-cantidad-producto"></span>
+      </p>
+      <p class="dialogo-cantidad__texto">
+        Cantidad predeterminada: <span id="dialogo-cantidad-defecto">1</span>
+      </p>
+
+      <input
+        type="text"
+        id="dialogo-cantidad-input"
+        class="dialogo-cantidad__campo"
+        inputmode="decimal"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+        aria-label="Cantidad"
+      />
+      <p id="dialogo-cantidad-error" class="dialogo-cantidad__error" hidden></p>
+
+      <!-- data-tecla: lo lee pulsarTeclaCantidad() en app.js, que es la
+           misma funcion que atiende al teclado fisico. -->
+      <div class="teclado-numerico">
+        <button type="button" class="tecla" data-tecla="1">1</button>
+        <button type="button" class="tecla" data-tecla="2">2</button>
+        <button type="button" class="tecla" data-tecla="3">3</button>
+        <button type="button" class="tecla tecla--secundaria" data-tecla="borrar" aria-label="Borrar">
+          <svg class="tecla__icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 5h10a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 19 19H9L2.6 12z" />
+            <path d="M12.4 9.6l5 4.8M17.4 9.6l-5 4.8" />
+          </svg>
+        </button>
+
+        <button type="button" class="tecla" data-tecla="4">4</button>
+        <button type="button" class="tecla" data-tecla="5">5</button>
+        <button type="button" class="tecla" data-tecla="6">6</button>
+        <button type="button" class="tecla tecla--secundaria" data-tecla="esc">esc</button>
+
+        <button type="button" class="tecla" data-tecla="7">7</button>
+        <button type="button" class="tecla" data-tecla="8">8</button>
+        <button type="button" class="tecla" data-tecla="9">9</button>
+        <button type="button" class="tecla tecla--enter" data-tecla="enter" aria-label="Aceptar">
+          <svg class="tecla__icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H5" />
+            <path d="M9 11l-4 4 4 4" />
+          </svg>
+        </button>
+
+        <!-- El signo menos existe en el original. Aqui se puede teclear,
+             pero confirmarCantidad() rechaza cualquier cantidad que no sea
+             mayor que cero: una cantidad negativa descontaria inventario al
+             reves y no se notaria hasta cuadrar la caja. -->
+        <button type="button" class="tecla" data-tecla="-">-</button>
+        <button type="button" class="tecla" data-tecla="0">0</button>
+        <button type="button" class="tecla" data-tecla=".">.</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Notificaciones no bloqueantes (ej. "Producto guardado correctamente").
        Ver mostrarToast() en app.js. -->
   <div id="toast" class="toast" hidden></div>

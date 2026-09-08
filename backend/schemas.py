@@ -166,6 +166,15 @@ class OrdenDetalleCreate(BaseModel):
     cantidad: Decimal = Decimal("1")
 
 
+class OrdenDetalleUpdate(BaseModel):
+    """
+    Cambio de cantidad de una linea ya registrada (boton "F4 Cantidad" de la
+    pantalla de venta). El ajuste de inventario lo calcula el router por
+    diferencia contra la cantidad anterior, no se recibe de fuera.
+    """
+    cantidad: Decimal
+
+
 class OrdenCreate(BaseModel):
     tipo_orden: TipoOrden = TipoOrden.DIRECTA
     mesa_id: Optional[int] = None

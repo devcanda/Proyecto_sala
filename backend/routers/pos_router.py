@@ -17,7 +17,11 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models.inventory import Producto
 from backend.models.pos import Orden, OrdenDetalle, EstadoOrden, TipoOrden, Mesa, EstadoMesa
-from backend.services.ventas import descontar_inventario_por_venta, StockInsuficienteError
+from backend.services.ventas import (
+    descontar_inventario_por_venta,
+    reponer_inventario_por_devolucion,
+    StockInsuficienteError,
+)
 from backend import schemas
 
 router = APIRouter(prefix="/pos", tags=["POS"])
@@ -91,6 +95,74 @@ def _agregar_detalle(db: Session, orden: Orden, producto_id: int, cantidad):
     )
     db.add(detalle)
     return detalle
+
+
+def _orden_y_detalle_abiertos(db: Session, orden_id: int, detalle_id: int):
+    """Valida que la orden exista, siga abierta, y que la linea sea suya."""
+    orden = db.get(Orden, orden_id)
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    if orden.estado != EstadoOrden.ABIERTA:
+        raise HTTPException(status_code=409, detail="La orden ya no esta abierta")
+
+    detalle = db.get(OrdenDetalle, detalle_id)
+    # La comprobacion de pertenencia no es un detalle: sin ella se podria
+    # borrar la linea de OTRA orden pasando su id en la ruta.
+    if not detalle or detalle.orden_id != orden.id:
+        raise HTTPException(status_code=404, detail="Linea no encontrada en esta orden")
+    return orden, detalle
+
+
+@router.delete("/ordenes/{orden_id}/detalles/{detalle_id}", response_model=schemas.OrdenOut)
+def eliminar_detalle(orden_id: int, detalle_id: int, db: Session = Depends(get_db)):
+    """
+    Quita una linea del ticket y devuelve su cantidad al inventario.
+
+    Hace falta porque el inventario se descuenta al AGREGAR la linea, no al
+    cobrar: sin este endpoint, todo lo que el cliente se arrepienta de
+    llevar queda descontado para siempre.
+    """
+    orden, detalle = _orden_y_detalle_abiertos(db, orden_id, detalle_id)
+    reponer_inventario_por_devolucion(db, detalle.producto, detalle.cantidad)
+    db.delete(detalle)
+    db.commit()
+    db.refresh(orden)
+    return orden
+
+
+@router.put("/ordenes/{orden_id}/detalles/{detalle_id}", response_model=schemas.OrdenOut)
+def cambiar_cantidad_detalle(
+    orden_id: int,
+    detalle_id: int,
+    payload: schemas.OrdenDetalleUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Cambia la cantidad de una linea, moviendo el inventario solo por la
+    DIFERENCIA: subir de 2 a 5 descuenta 3, bajar de 5 a 2 devuelve 3. Asi
+    no hace falta deshacer y rehacer la linea entera.
+    """
+    orden, detalle = _orden_y_detalle_abiertos(db, orden_id, detalle_id)
+
+    if payload.cantidad <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="La cantidad debe ser mayor que cero. Para quitar la linea, usa DELETE.",
+        )
+
+    diferencia = payload.cantidad - detalle.cantidad
+    if diferencia > 0:
+        try:
+            descontar_inventario_por_venta(db, detalle.producto, diferencia)
+        except StockInsuficienteError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    elif diferencia < 0:
+        reponer_inventario_por_devolucion(db, detalle.producto, -diferencia)
+
+    detalle.cantidad = payload.cantidad
+    db.commit()
+    db.refresh(orden)
+    return orden
 
 
 @router.post("/ordenes/{orden_id}/pagar", response_model=schemas.OrdenOut)
