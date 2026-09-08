@@ -673,6 +673,215 @@ posterior (ver Backlog).
   confirmando que se recarga correctamente en el campo `date` al
   volver a hacer clic en la fila.
 
+### 2026-09-08 — Marco visual estilo Aronium (paso 1: el armazón)
+
+- El desarrollador planteó que el programa "aún dista mucho de parecerse a
+  Aronium" y preguntó si era viable calcar primero la parte visual y
+  trabajar la lógica de cada apartado después. Se acordó: **marco ahora,
+  detalle después**, y solo sobre las 6 pantallas que ya existen (Retail,
+  Hospitalidad, Productos, Inventario, Alertas, Configuración), sin
+  maquetar secciones que Aronium tiene y este proyecto todavía no
+  (Clientes, histórico de documentos, reportes).
+- **Riesgo identificado antes de tocar nada.** El intento anterior de
+  adaptar el layout a mano (ver bitácora del 2026-09-07) rompió
+  funcionalidad porque el HTML nuevo eliminó `#productos-grid` y
+  `#categorias-tabs` y renombró `#ticket-vacio`, sin que apareciera ningún
+  error en consola. La causa de fondo es que `app.js` está acoplado al
+  HTML por identificadores de elemento: hoy busca 94 ids que las vistas
+  deben seguir proveyendo.
+- **Mitigación: `scripts/verificar_contrato_dom.py`** (nuevo). Compara los
+  ids que busca el JS contra los que define el HTML, comprueba los
+  enganches por clase (`.seccion-btn[data-seccion]`, `.modo-btn[data-modo]`)
+  y la presencia de `#barcode-input`. Devuelve código 1 si algo se rompe,
+  así que sirve para un hook de pre-commit. La regla de trabajo para esta
+  fase visual es: el CSS y el marcado envolvente son libres, pero todo
+  elemento que cargue uno de esos ids debe sobrevivir con el mismo id.
+- **Qué cambió en el tema (`frontend/css/style.css`):**
+  1. `--radius` pasó de `10px` a `2px`. Era el detalle que más delataba un
+     POS "hecho en web": Aronium es una app WinForms y casi no redondea.
+  2. Paleta de grises neutros de escritorio (`#1e1e1e` / `#252526` /
+     `#2d2d30`) en vez del casi-negro azulado anterior (`#101317`), más
+     `--color-seleccion` (azul tipo Explorador) para lo seleccionado.
+     `--color-primary-dark` conserva su rol invertido y su nota.
+  3. Densidad global vía `html { font-size: 14px }`. Como toda la hoja
+     está en `rem`, comprime la interfaz de forma proporcional sin
+     reescribir cada `padding`. Se agregaron variables de alto fijo
+     (`--alto-barra`, `--alto-control`, `--alto-statusbar`) para que las
+     barras y los controles se alineen entre pantallas.
+  4. `button, input, select, textarea { font-family: inherit }`: sin esto
+     **ningún** botón del proyecto usaba Segoe UI, sino la fuente por
+     defecto del navegador.
+- **Qué cambió en el armazón (`frontend/index.html`):**
+  1. El `body` es una columna flex de alto fijo y el scroll pasó a ser
+     interno de `.app-view`. Una app de escritorio no hace scroll de
+     página.
+  2. Barra lateral densa: filas de alto fijo, sin pastillas, con barra de
+     acento a la izquierda en el item activo, e **iconos SVG en línea**.
+     Van en línea y no como fuente de iconos ni CDN a propósito: el modo
+     Standalone tiene que funcionar sin internet.
+  3. **Barra de estado inferior nueva.** Recoge dos elementos que andaban
+     sueltos: `#barcode-input`, que flotaba con `position: fixed` contra
+     el borde y tapaba el final del contenido, y `#connection-status`, que
+     estaba al pie de la barra lateral donde nadie lo mira.
+- **Primitivas compartidas** (afectan a las 6 pantallas de una vez):
+  pestañas de categoría rectas en vez de pastillas, catálogo de productos
+  como retícula compacta, `.tabla-admin` convertida en rejilla de datos
+  (filas bajas, cabecera fija en mayúsculas, resaltado de fila completa),
+  `.panel-admin` con barra de título propia, y botones, campos, etiquetas
+  de estado y selector de archivo compactos y rectos.
+- **Verificación.** Contrato del DOM en verde (94 ids buscados, 0
+  huérfanos). Prueba funcional con navegador headless: el foco arranca en
+  el lector, escanear un código real agrega la línea al ticket, el
+  multiplicador `3*código` da el total esperado, escribir en un campo de
+  formulario ya no se lo roba el lector, y las 6 pantallas navegan sin
+  errores de consola.
+- **Deliberadamente NO se tocó**, porque corresponde a la fase de detalle
+  contra capturas reales: los iconos emoji del panel de acciones de Retail
+  (se ven a color y desentonan con los iconos monocromos del marco), los
+  interruptores deslizantes de Productos (en Aronium serían casillas de
+  verificación), y la barra de comandos que Aronium pone encima de cada
+  rejilla (Nuevo / Editar / Eliminar / Actualizar) — no se agregó para no
+  sumar más botones decorativos sin lógica.
+
+### 2026-09-08 — Calco de la pantalla de venta (paso 2: Retail contra la captura real)
+
+- El desarrollador aportó la captura real de la pantalla de venta de
+  Aronium y pidió, además, que **las opciones de administración quedaran
+  alojadas en los tres puntos rojos de la esquina inferior derecha**.
+- **Qué se calcó** (`frontend/views/pos_retail.html` + bloque nuevo en
+  `style.css`): barra superior con los cuatro modos de búsqueda y el
+  buscador sin recuadro; cabecera del ticket con el subrayado azul;
+  mensaje de vacío centrado en el hueco del ticket; totales anclados abajo
+  a la derecha con separador punteado y TOTAL en grande; y el panel de
+  acciones de 4 columnas con el atajo de teclado en la esquina superior
+  izquierda de cada botón, Cash/Card/Check distinguidos por una línea de
+  color en el borde inferior (no por relleno), F10 Pago en verde ocupando
+  dos columnas, y Anular orden en rojo.
+- **Iconos.** Se reemplazaron los emoji del panel (🔍 💰 🏷 👤 💾 🗑) por un
+  sprite SVG monocromo (`<symbol>` + `<use>`) en la propia vista. Iban a
+  color y desentonaban con el resto del marco. Va en línea, no como fuente
+  de iconos ni CDN, porque el modo Standalone debe funcionar sin internet.
+- **Navegación: la barra lateral desaparece en Venta.** La pantalla de caja
+  de Aronium es a sangre, sin barra lateral, y el pedido de alojar
+  Administración en los tres puntos solo tiene sentido si la barra deja de
+  cargarla. Se resolvió así:
+  1. `#btn-admin-toggle` pasó a ser el botón de los tres puntos, fijo en la
+     esquina inferior derecha, y `#admin-submenu` su menú desplegable.
+  2. **Ambos siguen viviendo en `index.html`, no en la vista.** Es una
+     restricción real, no una preferencia: `init()` los enlaza por id una
+     sola vez al arrancar, *antes* de inyectar ninguna vista, y
+     `marcarSeccionActiva()` los consulta en cada cambio de sección. Si se
+     mudaran a `pos_retail.html`, `init()` reventaría al arrancar y también
+     al entrar a cualquier sección de administración. El botón toma sus
+     medidas de las mismas variables CSS que la retícula del panel
+     (`--ancho-acciones`, `--alto-celda-accion`) para encajar en su última
+     celda sin desalinearse.
+  3. La barra lateral **sí** aparece en las secciones de administración,
+     para saber dónde se está y poder volver. Lo decide el CSS mediante
+     `body[data-seccion]`, que `marcarSeccionActiva()` ahora mantiene.
+  4. Los botones de navegación están duplicados a propósito (barra lateral
+     y menú). No es un problema porque `app.js` los enlaza por clase y
+     atributo de datos, no por id.
+- **Comportamiento del menú** (`app.js`): antes el submenú se forzaba
+  abierto mientras se estuviera en una sección de administración, que era
+  correcto para un submenú fijo dentro de la barra lateral pero dejaba un
+  menú flotante pegado en pantalla. Ahora se abre y se cierra con el botón,
+  y se cierra al elegir una opción, al pulsar fuera y con Escape.
+- **Desviaciones deliberadas respecto al original**, todas documentadas en
+  la cabecera de `pos_retail.html`:
+  1. Se conserva la grilla de productos táctil, que la Aronium real no
+     tiene (decisión del 2026-09-07). Se colocó en la banda central del
+     panel de acciones, que en el original está vacía con la marca de agua
+     del logo, así el ticket queda tan amplio como en la captura.
+  2. No se reproduce el logo de Aronium: es marca de otra empresa.
+  3. Los importes mantienen el formato del proyecto (`$25.000,00`) en vez
+     del `0.00` del original.
+  4. Se mantiene la barra de estado inferior, que el original no tiene,
+     porque `#barcode-input` debe seguir visible y enfocable en todas las
+     pantallas (regla 5-B). Se dejó lo más discreta posible.
+- **Dos correcciones que salieron del calco**: el `<br/>` que
+  `renderProductosGrid()` mete en cada ficha contaba como un elemento más
+  dentro del contenedor flex y abría un hueco entre el nombre y el precio;
+  y el `display: block` del `<strong>` del mensaje de ticket vacío se había
+  perdido, dejando el titular y la explicación en la misma línea (afectaba
+  también a Hospitalidad, que comparte ese mensaje).
+- **Verificación.** Contrato del DOM en verde. Prueba funcional con
+  navegador headless, 8 comprobaciones: el foco arranca en el lector, la
+  barra lateral está oculta en Venta y visible en Productos, escanear
+  agrega la línea, el multiplicador `3*código` da `$100.000,00`, el menú
+  abre y se cierra al elegir y con Escape, escribir en un formulario no se
+  lo roba el lector, y las 6 pantallas navegan sin errores de consola.
+- **Sigue pendiente**: los botones del panel siguen siendo decorativos
+  salvo el buscador, las fichas y F10 Pago; los cuatro modos de búsqueda de
+  la barra superior son decorativos (hoy el buscador ya filtra por nombre y
+  código a la vez); y Hospitalidad y las pantallas de administración
+  esperan sus propias capturas de referencia.
+
+### 2026-09-08 — El lector de código de barras pasa al buscador de la pantalla
+
+- El desarrollador pidió quitar la barra de captura del lector de la
+  esquina inferior izquierda, porque el código debe entrar por el mismo
+  buscador de arriba. Era redundante tener dos campos para lo mismo.
+- **Qué se quitó.** `#barcode-input`, el campo dedicado que vivía fijo en
+  la barra de estado. La barra de estado se queda solo con el indicador de
+  conexión.
+- **Cómo funciona ahora.** El campo de captura del lector se declara en el
+  HTML con el atributo `[data-captura-barras]`, y es el propio buscador de
+  cada pantalla de venta. `barcode.js` dejó de ser dueño de un campo fijo:
+  1. Busca el campo de captura de la vista actual cada vez que lo necesita,
+     porque las vistas se inyectan y se destruyen en cada cambio de
+     pantalla.
+  2. Solo lo considera si está **visible** (`offsetParent`). Sin esa
+     guarda, en Hospitalidad pelearía por el foco del buscador de la
+     cuenta mientras todavía se está eligiendo mesa.
+  3. Escucha el Enter **delegado en `document`**, no enlazado al campo, por
+     la misma razón: el campo nace y muere con cada vista, así que no se le
+     puede enlazar un listener una sola vez al arrancar.
+  4. Ya no limpia el campo al pulsar Enter. Lo limpia `app.js` sólo cuando
+     el escaneo prosperó, para que un código no reconocido quede a la vista
+     y se pueda corregir.
+- **Hospitalidad también necesitaba uno.** No tenía buscador, y su panel de
+  cuenta documenta explícitamente el escaneo ("Escanea un código de barras,
+  o escribe `5*codigo`..."). Sin un campo propio, quitar el global habría
+  roto ese flujo en silencio. Se le añadió el mismo buscador, que de paso
+  le da el filtrado de productos que le faltaba.
+- **Consecuencia de compartir campo: el Enter ahora es ambiguo.** Puede
+  venir del lector, que teclea un código exacto, o de una persona buscando
+  por nombre. `onBarcodeScan()` se reescribió para resolverlo por orden de
+  certeza:
+  1. Coincidencia exacta de código contra el catálogo ya cargado. Es el
+     caso del lector y se resuelve sin salir a la red.
+  2. Si el filtro dejó **un único** producto a la vista, se agrega ese. Va
+     antes de consultar al backend para que teclear un nombre no dispare
+     una petición condenada al 404. No puede confundirse con un escaneo:
+     si el código leído no está en el catálogo, el filtro no deja ningún
+     producto visible y este caso no se cumple.
+  3. Consulta al backend, que cubre un código existente en la base pero no
+     en el catálogo en memoria (por ejemplo, un producto dado de alta desde
+     otra caja en modo Red LAN).
+  4. Si no queda ningún candidato, se avisa. **El aviso pasó de `alert()` a
+     un toast**: un diálogo bloqueante saltaría ahora ante cualquier
+     búsqueda sin resultados y habría que descartarlo a mano.
+- **Dos arreglos que exigía el cambio:**
+  1. `productosFiltrados()` sólo aplica el filtro por categoría donde hay
+     pestañas para cambiarlo. En la cuenta de Hospitalidad no las hay, y
+     sin esa guarda arrastraría la categoría elegida en Retail, escondiendo
+     productos sin forma de deshacerlo desde esa pantalla.
+  2. El listener del buscador salió de la rama exclusiva de Retail, porque
+     ahora los dos modos traen ese campo.
+- **`scripts/verificar_contrato_dom.py` actualizado**: donde antes exigía
+  `#barcode-input`, ahora comprueba que cada pantalla de venta declare su
+  `[data-captura-barras]`. Es la misma regla de UX, sobre otro campo.
+- **Verificación.** Contrato en verde. Prueba funcional con navegador
+  headless, 9 comprobaciones: `#barcode-input` ya no existe, el foco
+  arranca en el buscador, escanear agrega la línea y limpia el campo, el
+  multiplicador da el total esperado, buscar por nombre y pulsar Enter
+  agrega el único producto visible, un texto sin resultados avisa por toast
+  y no por diálogo bloqueante, Hospitalidad conserva su campo de captura
+  sin robar el foco mientras la cuenta está oculta, escribir en un
+  formulario de administración sigue sin verse interrumpido, y las 6
+  pantallas navegan sin excepciones de JavaScript.
+
 ## 9. Backlog / próximas fases
 
 - [ ] Autenticación y roles de usuario (cajero, administrador).
@@ -716,3 +925,15 @@ posterior (ver Backlog).
 - [ ] Subtotal/Impuestos reales en el ticket de Retail (hoy son "$0,00"
       estáticos): requiere definir de dónde sale la tasa de impuesto,
       aprovechando el nuevo interruptor `incluye_impuesto` del producto.
+- [ ] Fase de detalle visual, pantalla por pantalla, contra capturas
+      reales de Aronium. Retail ya está calcado (bitácora 2026-09-08);
+      faltan Hospitalidad y las cuatro pantallas de administración, para
+      las que todavía no hay captura de referencia. Pendientes conocidos:
+      cambiar los interruptores deslizantes de Productos por casillas de
+      verificación, y evaluar la barra de comandos por rejilla (Nuevo /
+      Editar / Eliminar / Actualizar) una vez tengan lógica real.
+- [ ] Modos de búsqueda de la barra superior de Retail (por nombre, código
+      de barras, código interno, etiqueta): hoy son decorativos, el
+      buscador filtra por nombre y código a la vez.
+- [ ] Correr `scripts/verificar_contrato_dom.py` como hook de pre-commit,
+      en vez de a mano.

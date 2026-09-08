@@ -30,6 +30,23 @@
     <h2 id="cuenta-titulo">Mesa</h2>
 
     <div class="pos-retail__grid">
+      <!-- data-captura-barras: campo donde escribe el lector de codigo de
+           barras en esta pantalla. Hasta el 2026-09-08 el lector tenia un
+           campo propio y fijo en la barra inferior de la ventana; al
+           quitarlo, cada pantalla de venta necesita el suyo, y de paso
+           esta gana el buscador de productos que no tenia.
+           Ver frontend/js/barcode.js. -->
+      <input
+        type="text"
+        id="productos-buscador"
+        class="buscador-productos"
+        placeholder="Buscar producto por nombre o escanear código"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        data-captura-barras
+      />
       <div id="productos-grid" class="grid-productos"></div>
     </div>
 

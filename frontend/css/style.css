@@ -1,34 +1,82 @@
 /*
   style.css
   ----------
-  Tema oscuro inspirado en la pantalla de venta de Aronium: alto contraste,
-  botones grandes pensados para pantallas tactiles/mostrador, y una
-  jerarquia visual simple para que el operario de caja encuentre lo que
-  necesita sin pensar.
+  Tema oscuro estilo Aronium. La referencia es una aplicacion de escritorio
+  de Windows, no una pagina web, y esa diferencia se juega en tres cosas
+  concretas que gobiernan las variables de abajo:
+
+    1. Geometria cuadrada. Aronium practicamente no redondea nada. --radius
+       vale 2px, no 10px. Es el detalle que mas delata a un POS "hecho en
+       web" cuando se lo pone al lado del original.
+    2. Densidad. Es una app de mostrador: filas bajas, controles de altura
+       fija, poca respiracion. Toda esta hoja esta escrita en rem, asi que
+       la densidad global se gobierna desde html{font-size} (ver abajo).
+    3. Grises neutros. La paleta anterior tiraba a azul (#101317, #1b1f26);
+       el gris de escritorio es plano, sin tinte.
+
+  El MARCO (barra lateral, barra de herramientas, barra de estado, panel de
+  contenido) vive en este archivo y en index.html, y es lo que le da el
+  caracter de aplicacion al conjunto. El detalle pantalla por pantalla se
+  ajusta despues, contra capturas reales de Aronium.
 */
 
 :root {
-  --color-bg: #101317;
-  --color-panel: #1b1f26;
-  --color-hover: #262b34;
-  --color-primary: #3b82f6;
+  /* Superficies, de la mas profunda a la mas elevada. El fondo de trabajo
+     es el mas oscuro; las barras y paneles van subiendo de tono, que es
+     como se separan las zonas en una app de escritorio (por tono, no por
+     sombras ni por esquinas redondeadas). */
+  --color-bg: #1e1e1e;
+  --color-panel: #252526;
+  --color-panel-alto: #2d2d30;
+  --color-hover: #2f3033;
+  /* Azul de seleccion tipo Explorador de Windows, para la fila/seccion
+     activa. Es mas sobrio que pintar el item entero del azul de acento. */
+  --color-seleccion: #094771;
+
+  --color-primary: #0a7bce;
   /* OJO: en el tema claro original esta variable era un azul MAS OSCURO
      que --color-primary (para que el texto fuera legible sobre fondo
      blanco). En el tema oscuro el rol es el mismo (texto/acento legible),
      pero para lograrlo necesita ser un azul MAS CLARO que --color-primary,
      ya que ahora el fondo es oscuro. El nombre de la variable se mantiene
      para no tener que tocar cada selector que ya la usa. */
-  --color-primary-dark: #7fb8ff;
-  --color-text: #eef0f3;
-  --color-text-muted: #98a2b3;
-  --color-border: #2a2f38;
+  --color-primary-dark: #4cb2ff;
+
+  --color-text: #e8e8e8;
+  --color-text-muted: #9a9a9a;
+  --color-border: #3a3a3c;
+  --color-border-suave: #323234;
 
   --color-rojo: #e5484d;
   --color-amarillo: #f0b429;
   --color-verde: #3ecf8e;
 
-  --radius: 10px;
+  --radius: 2px;
+
+  /* Alturas fijas del marco. Estan como variables para que la barra de
+     marca, la de herramientas y la de estado se alineen entre si y entre
+     pantallas sin tener que ajustarlas una por una. */
+  --alto-barra: 2.3rem;
+  --alto-statusbar: 1.9rem;
+  --alto-control: 1.85rem;
+  --ancho-sidebar: 12.5rem;
+
+  /* Panel de acciones de Retail. El boton de los tres puntos vive en
+     index.html y se dimensiona con estas mismas variables para encajar en
+     la ultima celda de la reticula, asi que cambiar una de las dos las
+     mantiene alineadas. */
+  --ancho-acciones: 27rem;
+  --alto-celda-accion: 4.7rem;
+
   --font-base: "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html {
+  /* Palanca global de densidad. Como toda la hoja esta en rem, bajar la
+     raiz de los 16px que trae el navegador a 14px comprime la interfaz
+     entera de forma proporcional: es exactamente el aire que sobraba
+     frente a Aronium, y evita tener que reescribir cada padding. */
+  font-size: 14px;
 }
 
 * {
@@ -44,87 +92,141 @@ html, body {
   color: var(--color-text);
 }
 
-/* --- Layout general: sidebar + contenido --- */
+/* Una aplicacion de escritorio no hace scroll de pagina: el marco queda
+   quieto y lo que se desplaza es el panel de contenido (.app-view). Sin
+   esto, la barra de estado inferior se iria con el scroll. */
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Los controles de formulario NO heredan la tipografia por defecto: sin
+   esto, cada boton, input y select del proyecto se dibujaba con la fuente
+   por defecto del navegador en vez de Segoe UI, que es justo lo que
+   rompe la ilusion de aplicacion nativa. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Icono en linea (SVG en el HTML). Un unico tamano para todo el marco. */
+.icono {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* --- Layout general: barra lateral + contenido --- */
 .shell {
   display: flex;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
 
 .sidebar {
-  width: 200px;
+  width: var(--ancho-sidebar);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.25rem 1rem;
+  padding: 0;
   background: var(--color-panel);
   border-right: 1px solid var(--color-border);
+  overflow-y: auto;
 }
 
+/* Barra de marca: hace las veces de barra de titulo de la ventana, y por
+   eso comparte altura con la barra de herramientas de la derecha. */
 .sidebar__brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-primary-dark);
+  display: flex;
+  align-items: center;
+  height: var(--alto-barra);
+  flex-shrink: 0;
+  padding: 0 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+  background: var(--color-panel-alto);
+  border-bottom: 1px solid var(--color-border);
 }
 .sidebar__brand span {
-  color: var(--color-text);
-  font-weight: 400;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  margin-left: 0.25rem;
 }
 
 .sidebar__nav {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  padding: 0.3rem 0;
 }
 
+/* Item de navegacion: fila plana de altura fija con barra de acento a la
+   izquierda cuando esta activa. Nada de pastillas redondeadas. */
 .seccion-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 2.15rem;
+  padding: 0 0.85rem;
   text-align: left;
-  padding: 0.6rem 0.75rem;
   border: none;
-  border-radius: var(--radius);
+  border-left: 3px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--color-text);
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 400;
+  font-size: 0.9rem;
 }
 .seccion-btn:hover {
   background: var(--color-hover);
 }
 .seccion-btn.activo {
-  background: var(--color-primary);
+  background: var(--color-seleccion);
+  border-left-color: var(--color-primary-dark);
   color: #fff;
+  font-weight: 600;
 }
 
-.seccion-btn--grupo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+/* El icono se atenua un poco en reposo para que el peso visual lo lleve la
+   etiqueta, y se pone a pleno cuando el item esta activo. */
+.seccion-btn .icono {
+  opacity: 0.8;
 }
-.seccion-btn--grupo .flecha {
-  transition: transform 0.15s ease;
-  font-size: 0.8rem;
-}
-.seccion-btn--grupo[aria-expanded="true"] .flecha {
-  transform: rotate(180deg);
+.seccion-btn.activo .icono {
+  opacity: 1;
 }
 
-/* :not([hidden]): ver nota junto a .pos-hospitalidad__cuenta mas abajo
-   (una regla de autor que fije "display" en un elemento vence SIEMPRE al
-   "display:none" del atributo [hidden], sin importar especificidad). */
-.sidebar__submenu:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  margin-left: 0.5rem;
-  padding-left: 0.5rem;
-  border-left: 2px solid var(--color-border);
+/* Encabezado de grupo dentro de la barra lateral. Sustituye al antiguo
+   item plegable "Administracion": ya no hace falta plegar nada, porque la
+   barra lateral solo aparece cuando se esta EN administracion. */
+.sidebar__titulo {
+  padding: 0.9rem 0.85rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+/* La pantalla de caja va a sangre, sin barra lateral, igual que en
+   Aronium; la entrada a Administracion es el boton de los tres puntos.
+   En las secciones de administracion la barra si aparece, para saber
+   donde se esta y poder volver. app.js mantiene body[data-seccion]. */
+body[data-seccion="venta"] .sidebar {
+  display: none;
 }
 
 .seccion-btn--sub {
+  min-height: 1.95rem;
   font-size: 0.85rem;
-  padding: 0.45rem 0.6rem;
+  padding-left: 2.35rem;
 }
 
 .shell__contenido {
@@ -132,32 +234,27 @@ html, body {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-/* :not([hidden]): ver nota junto a .pos-hospitalidad__cuenta mas abajo.
-   #venta-subnav usa esta misma clase y se oculta/muestra via [hidden]
-   al cambiar de seccion en la barra lateral. */
-.topbar:not([hidden]) {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 1.25rem;
-  background: var(--color-panel);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.topbar__nav {
-  display: flex;
-  gap: 0.5rem;
-}
-
+/* Boton de seleccion de modo (Retail / Hospitalidad). Vive dentro del menu
+   flotante desde el calco del 2026-09-08: la barra de herramientas que lo
+   alojaba desaparecio, porque la pantalla de venta de Aronium no la tiene.
+   Sin relieve en reposo, se revela al pasar por encima. */
 .modo-btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border);
+  height: 1.75rem;
+  padding: 0 0.9rem;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  background: var(--color-bg);
+  background: transparent;
+  color: var(--color-text);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+.modo-btn:hover {
+  background: var(--color-hover);
+  border-color: var(--color-border);
 }
 .modo-btn.activo {
   background: var(--color-primary);
@@ -166,33 +263,54 @@ html, body {
 }
 
 .topbar__status {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 .topbar__status.ok { color: var(--color-verde); }
 .topbar__status.error { color: var(--color-rojo); }
 
+/* Unico panel con scroll propio: el marco de alrededor queda fijo. */
 .app-view {
-  padding: 1.25rem;
   flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
 }
 
-/* --- Campo de captura de codigo de barras ---
-   Se mantiene visible pero de bajo perfil: el operario ve que puede
-   escanear/tipear sin que el elemento le robe protagonismo a la UI. */
-.barcode-input {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  padding: 0.6rem 1rem;
-  font-size: 1rem;
-  border: none;
-  border-top: 2px solid var(--color-primary);
-  outline: none;
-  background: var(--color-panel);
-  color: var(--color-text);
+/* Titulo de pantalla. El h2 por defecto del navegador (2em, peso 700) es
+   escala de documento, no de aplicacion. */
+.app-view h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.15rem;
+  font-weight: 600;
 }
+
+/* --- Barra de estado inferior ---
+   Antes el campo del lector de barras flotaba suelto y pegado al borde de
+   la ventana (position:fixed), tapando el final del contenido. Ahora es
+   una barra de estado real: ocupa su lugar en el layout, y ademas aloja el
+   indicador de conexion, que estaba perdido al pie de la barra lateral. */
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  height: var(--alto-statusbar);
+  flex-shrink: 0;
+  padding: 0 0.6rem;
+  background: var(--color-panel-alto);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.8rem;
+}
+
+/* Aqui vivia .barcode-input, el campo dedicado del lector de codigo de
+   barras. Se quito el 2026-09-08: el lector escribe ahora en el buscador
+   de cada pantalla de venta, el que lleva [data-captura-barras]. La regla
+   de UX no cambio, solo cambio de campo: ese buscador tiene que seguir
+   visible y enfocable, nunca oculto con display:none. */
 
 /* --- Componentes compartidos de vistas (retail/hospitalidad) --- */
 
@@ -200,60 +318,94 @@ html, body {
   display: block;
   width: 100%;
   max-width: 340px;
-  padding: 0.55rem 0.75rem;
+  height: var(--alto-control);
+  padding: 0 0.55rem;
   margin: 0.5rem 0 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  font-size: 0.95rem;
-  background: var(--color-panel);
+  font-size: 0.9rem;
+  outline: none;
+  background: var(--color-bg);
   color: var(--color-text);
 }
+.buscador-productos:focus {
+  border-color: var(--color-primary);
+}
 
+/* Pestañas de categoria. Antes eran pastillas (border-radius: 999px), que
+   es un gesto propio de la web; en una app de escritorio son botones rectos
+   apoyados sobre una linea divisoria comun. */
 .categorias-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  gap: 0.2rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .categoria-tab {
-  padding: 0.35rem 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-panel);
-  color: var(--color-text);
-  font-size: 0.85rem;
-  font-weight: 600;
+  height: 1.65rem;
+  padding: 0 0.7rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
   cursor: pointer;
 }
 .categoria-tab:hover {
-  border-color: var(--color-primary);
+  background: var(--color-hover);
+  color: var(--color-text);
 }
 .categoria-tab.activo {
-  background: var(--color-primary);
+  background: var(--color-seleccion);
   color: #fff;
   border-color: var(--color-primary);
 }
 
 .grid-productos {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.35rem;
 }
 
+/* Ficha de producto: en Aronium el catalogo es una reticula compacta de
+   celdas casi contiguas, no tarjetas separadas por aire. Se conserva el
+   hundido al pulsar (scale) porque es el unico feedback tactil que tiene
+   el operario en un mostrador con pantalla tactil. */
 .producto-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 3.6rem;
+  padding: 0.5rem 0.45rem;
   background: var(--color-panel);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-suave);
   border-radius: var(--radius);
-  padding: 0.75rem;
   text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.25;
   cursor: pointer;
-  transition: transform 0.05s ease-in-out;
+  transition: background-color 0.08s ease, border-color 0.08s ease,
+    transform 0.05s ease-in-out;
+}
+/* renderProductosGrid() dibuja la ficha como "<strong>nombre</strong><br/>
+   precio". Dentro de un contenedor flex ese <br/> cuenta como un item mas
+   y abre un hueco vacio entre el nombre y el precio, asi que se anula
+   aqui en vez de tocar el render. */
+.producto-card br {
+  display: none;
 }
 .producto-card:hover {
+  background: var(--color-hover);
   border-color: var(--color-primary);
 }
 .producto-card:active {
+  background: var(--color-seleccion);
   transform: scale(0.97);
 }
 
@@ -295,6 +447,24 @@ html, body {
   font-size: 0.9rem;
 }
 
+/* Mensaje de ticket vacio. Compartido por Retail y Hospitalidad (los dos
+   usan #ticket-vacio con esta clase), asi que vive aqui y no en el bloque
+   de Retail. El "display: block" del <strong> es lo que separa el titular
+   de la explicacion: sin el, dentro de un contenedor flex quedan en la
+   misma linea. */
+.ticket-vacio-msg {
+  padding: 1.5rem 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+.ticket-vacio-msg strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
 .mesas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -314,12 +484,16 @@ html, body {
 .mesa-card.reservada { background: rgba(240, 180, 41, 0.12); border-color: var(--color-amarillo); }
 
 /* --- Semaforizacion de vencimientos --- */
+/* Etiqueta de estado. Rectangular, no pastilla: en una rejilla de datos de
+   escritorio los marcadores son cuadrados y se alinean con el texto. */
 .badge-nivel {
   display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--radius);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: #fff;
 }
 /* Separacion cuando el badge va pegado a texto en la misma celda (ej. el
@@ -377,67 +551,113 @@ strong + .badge-nivel {
   text-align: right;
 }
 
+/* Botones de accion: rectos, compactos y con borde de 1px, como los de un
+   cuadro de dialogo de Windows. Antes eran barras de 1rem con peso 700,
+   que es escala de boton web. */
 .btn-primario,
 .btn-secundario {
   width: 100%;
-  padding: 0.75rem 1rem;
-  margin-top: 0.75rem;
-  border: none;
+  min-height: var(--alto-control);
+  padding: 0.35rem 0.9rem;
+  margin-top: 0.6rem;
+  border: 1px solid transparent;
   border-radius: var(--radius);
-  font-weight: 700;
-  font-size: 1rem;
+  font-weight: 600;
+  font-size: 0.88rem;
   cursor: pointer;
 }
 .btn-primario {
   background: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fff;
+}
+.btn-primario:hover:not(:disabled) {
+  background: #0f8ae4;
+  border-color: #0f8ae4;
 }
 .btn-primario:disabled {
   background: var(--color-border);
+  border-color: var(--color-border);
   color: var(--color-text-muted);
   cursor: not-allowed;
 }
 .btn-secundario {
   width: auto;
-  background: transparent;
-  color: var(--color-primary-dark);
+  background: var(--color-panel-alto);
+  color: var(--color-text);
   border: 1px solid var(--color-border);
+}
+.btn-secundario:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
 }
 
 /* --- Pantallas de administracion (Productos / Inventario / Alertas) --- */
 
+/* Panel de contenido con barra de titulo propia, como los recuadros de
+   grupo de una aplicacion Windows. El titulo se lleva a los bordes con
+   margen negativo, asi que TODO .panel-admin debe empezar por su <h3>
+   (hoy los seis lo hacen). */
 .panel-admin {
   background: var(--color-panel);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 1.25rem;
-  margin-bottom: 1.25rem;
+  padding: 0.85rem;
+  margin-bottom: 0.85rem;
 }
 
-.panel-admin h3 {
-  margin-top: 0;
+.panel-admin > h3 {
+  margin: -0.85rem -0.85rem 0.85rem;
+  padding: 0.4rem 0.85rem;
+  background: var(--color-panel-alto);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+.panel-admin > h3 span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text);
 }
 
+/* Rejilla de datos: filas bajas, cabecera fija y resaltado de fila
+   completa. Es el componente que mas se repite en las pantallas de
+   administracion de Aronium. */
 .tabla-admin {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.85rem;
 }
 .tabla-admin th,
 .tabla-admin td {
   text-align: left;
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--color-border);
-  font-size: 0.9rem;
+  padding: 0.32rem 0.5rem;
+  border-bottom: 1px solid var(--color-border-suave);
+  white-space: nowrap;
 }
 .tabla-admin th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-panel-alto);
+  border-bottom: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .tabla-admin tr.fila-clickable {
   cursor: pointer;
 }
-.tabla-admin tr.fila-clickable:hover {
+.tabla-admin tbody tr:hover {
   background: var(--color-hover);
+}
+.tabla-admin tr.fila-clickable:hover {
+  background: var(--color-seleccion);
 }
 
 /* :not([hidden]): #form-nueva-mesa reutiliza esta clase y se oculta con
@@ -445,7 +665,7 @@ strong + .badge-nivel {
 .form-inline:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.5rem 0.6rem;
   align-items: flex-end;
 }
 /* :not([hidden]): ver nota junto a .pos-hospitalidad__cuenta mas abajo
@@ -455,24 +675,55 @@ strong + .badge-nivel {
 .form-inline .campo:not([hidden]) {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.85rem;
+  gap: 0.15rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
 }
 .form-inline input,
 .form-inline select {
-  padding: 0.5rem 0.6rem;
+  height: var(--alto-control);
+  padding: 0 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   min-width: 140px;
+  outline: none;
   background: var(--color-bg);
   color: var(--color-text);
+}
+.form-inline input:focus,
+.form-inline select:focus,
+.form-inline textarea:focus {
+  border-color: var(--color-primary);
 }
 /* El icono nativo del selector de fecha viene oscuro por defecto y queda
    invisible sobre un input de fondo oscuro (Chrome/Edge). */
 .form-inline input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
+}
+
+/* Selector de archivo: sin esto el navegador dibuja su boton nativo (gris
+   claro con borde blanco), que era el unico control de toda la app que
+   seguia delatando que esto corre en un navegador. */
+.form-inline input[type="file"] {
+  height: auto;
+  padding: 0.22rem 0.3rem;
+  font-size: 0.82rem;
+}
+.form-inline input[type="file"]::file-selector-button {
+  margin-right: 0.5rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-panel-alto);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.form-inline input[type="file"]::file-selector-button:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
 }
 .form-inline .btn-primario,
 .form-inline .btn-secundario {
@@ -504,201 +755,287 @@ strong + .badge-nivel {
 }
 
 /* =========================================
-   Rediseño POS Retail (Estilo Aronium)
-   Usa las mismas variables de tema que el resto de la app (ver :root):
-   la version original de este bloque traia colores fijos (#2c2c2c,
-   #333, etc.) que no coincidian con la paleta del resto de las pantallas
-   (Productos/Inventario/Alertas), lo cual se veia desarmonico al navegar
-   entre secciones.
+   POS Retail - calco de la pantalla de venta de Aronium
+   (captura aportada por el desarrollador el 2026-09-08). Las diferencias
+   deliberadas respecto al original estan documentadas al principio de
+   views/pos_retail.html.
    ========================================= */
 
-.pos-retail-aronium {
+.pos-retail {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 2.5rem);
-  background: var(--color-bg);
-  color: var(--color-text);
-  margin: -1.25rem; /* Para que el buscador quede pegado al borde, como en Aronium */
-}
-
-/* Header Buscador */
-.pos-retail-aronium__header {
-  background: var(--color-panel);
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-}
-
-.buscador-wrapper {
-  display: flex;
-  align-items: center;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  width: 100%;
-  max-width: 400px;
-}
-
-.icon-barcode {
-  padding: 0 0.6rem;
-  color: var(--color-text-muted);
-  font-weight: bold;
-}
-
-.pos-retail-aronium__header .buscador-productos {
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  padding: 0.5rem;
-  width: 100%;
-  max-width: none;
-  outline: none;
-  margin: 0;
-}
-.pos-retail-aronium__header .buscador-productos::placeholder {
-  color: var(--color-text-muted);
-}
-
-/* Cuerpo principal: ticket+catalogo a la izquierda, acciones a la derecha */
-.pos-retail-aronium__body {
-  display: flex;
   flex: 1;
-  align-items: stretch;
+  min-height: 0;
+  /* Cancela el padding de .app-view: la pantalla de caja va a sangre. */
+  margin: -1.25rem;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
-.pos-retail-aronium__main {
+/* La hoja de <symbol> del sprite de iconos no debe ocupar espacio. */
+.hoja-iconos {
+  display: none;
+}
+
+/* --- Barra superior: modos de busqueda + buscador --- */
+.pos-retail__topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.9rem;
+  flex-shrink: 0;
+  padding: 0 0.6rem;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pos-retail__modos {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.btn-modo-busqueda {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.btn-modo-busqueda:disabled {
+  cursor: default;
+}
+.btn-modo-busqueda.activo {
+  color: var(--color-text);
+}
+.icono-modo {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.pos-retail__buscador {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 1rem;
-  border-right: 1px solid var(--color-border);
-}
-
-/* En este layout el ticket comparte espacio con totales y catalogo debajo,
-   asi que usa una altura de scroll mas chica que en Hospitalidad. */
-.pos-retail-aronium__main .tabla-ticket-scroll {
-  max-height: 30vh;
-}
-
-/* Mensaje de estado vacio: en el flujo normal, entre la tabla y los
-   totales (nada de position:absolute - con la tabla casi sin alto por
-   no tener filas, terminaba superpuesto encima del bloque de Totales). */
-.ticket-vacio-msg {
-  text-align: center;
+  padding-left: 0.35rem;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
-  padding: 1.5rem 0;
 }
-.ticket-vacio-msg strong {
-  display: block;
-  font-size: 1.05rem;
-  color: var(--color-text);
-  margin-bottom: 0.25rem;
+.icono-lupa {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  transition: color 0.12s ease;
+}
+/* Este campo es tambien donde escribe el lector, y barcode.js le devuelve
+   el foco permanentemente. Como va sin recuadro, el unico indicio de que
+   esta listo para recibir seria el cursor: la lupa se enciende para
+   reforzarlo. */
+.pos-retail__buscador:focus-within .icono-lupa {
+  color: var(--color-primary-dark);
+}
+/* En esta barra el buscador va sin recuadro: es un campo desnudo apoyado
+   sobre la barra, como en el original. */
+.pos-retail__buscador .buscador-productos {
+  flex: 1;
+  max-width: none;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.92rem;
+}
+.pos-retail__buscador .buscador-productos::placeholder {
+  color: var(--color-text-muted);
 }
 
-.pos-retail-aronium__totales {
-  background: var(--color-panel);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
-  margin: 0.75rem 0;
+/* --- Cuerpo: ticket a la izquierda, acciones a la derecha --- */
+.pos-retail__cuerpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pos-retail__ticket {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0 0.75rem 0.5rem;
+}
+
+.pos-retail__ticket .tabla-ticket-scroll {
+  max-height: none;
+  flex-shrink: 0;
+  margin-bottom: 0;
+  overflow-y: auto;
+}
+
+/* Mensaje de vacio centrado en el hueco que deja el ticket, como en el
+   original, en vez de pegado debajo de la cabecera. */
+.pos-retail__ticket .ticket-vacio-msg {
+  margin: auto;
+  padding: 0;
+}
+.pos-retail__ticket .ticket-vacio-msg strong {
+  margin-bottom: 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* Totales anclados abajo a la derecha del panel del ticket. */
+.pos-retail__totales {
+  margin-top: auto;
+  align-self: flex-end;
+  width: min(24rem, 100%);
+  padding-top: 0.5rem;
 }
 .totales-fila {
   display: flex;
   justify-content: space-between;
-  font-size: 0.9rem;
+  gap: 2rem;
+  padding: 0.1rem 0;
+  font-size: 0.95rem;
   color: var(--color-text-muted);
 }
 .totales-fila.total-grande {
-  font-size: 1.4rem;
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  /* Separador punteado, como en el original. */
+  border-top: 1px dashed var(--color-border);
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--color-text);
-  margin-top: 0.25rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid var(--color-border);
 }
 
-.pos-retail-aronium__catalogo h3 {
-  margin: 0 0 0.5rem;
-}
-
-/* Sidebar de acciones */
-.pos-retail-aronium__sidebar {
-  width: 320px;
+/* --- Panel de acciones --- */
+.pos-retail__acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: var(--ancho-acciones);
   flex-shrink: 0;
-  background: var(--color-panel);
-  padding: 1px;
+  /* El fondo se ve por los huecos de 1px de las reticulas: asi se separan
+     los botones sin dibujar un borde en cada uno. */
+  background: var(--color-border);
+  border-left: 1px solid var(--color-border);
 }
 
 .acciones-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  grid-auto-rows: minmax(60px, auto);
   gap: 1px;
-  background: var(--color-border); /* separa visualmente los botones */
+  flex-shrink: 0;
+  background: var(--color-border);
+}
+
+.acciones-pago {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  flex-shrink: 0;
+  background: var(--color-border);
 }
 
 .btn-accion {
-  border: none;
-  background: var(--color-panel);
-  color: var(--color-text-muted);
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
-  cursor: pointer;
-  padding: 0.4rem;
-  font-size: 0.75rem;
-  transition: background-color 0.1s;
-}
-.btn-accion:hover {
-  background: var(--color-hover);
+  gap: 0.3rem;
+  min-height: var(--alto-celda-accion);
+  padding: 0.55rem 0.25rem 0.45rem;
+  border: none;
+  border-radius: 0;
+  background: var(--color-panel);
   color: var(--color-text);
-}
-.btn-accion .btn-icon {
-  font-size: 1rem;
-  font-weight: bold;
-}
-.btn-accion .btn-texto {
+  font-size: 0.78rem;
+  line-height: 1.15;
   text-align: center;
-  line-height: 1.1;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+.btn-accion:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+.btn-accion:disabled {
+  color: #6d6d6d;
+  cursor: default;
 }
 
-.btn-pago {
-  font-size: 0.9rem;
-  font-weight: bold;
-}
-
-/* Verde propio (mas oscuro que --color-verde, que es un mint claro
-   pensado para badges) para que el texto blanco tenga buen contraste
-   en un boton solido grande. */
-.btn-verde {
-  background: #1f9d5a;
-  color: #fff;
-}
-.btn-verde:hover {
-  background: #188049;
-}
-.btn-verde:disabled {
-  background: var(--color-border);
+/* Atajo de teclado en la esquina superior izquierda del boton, como en el
+   original. */
+.btn-accion__tecla {
+  position: absolute;
+  top: 0.28rem;
+  left: 0.42rem;
+  font-size: 0.7rem;
+  font-weight: 600;
   color: var(--color-text-muted);
-  cursor: not-allowed;
 }
-.btn-verde .btn-icon { font-size: 1.2rem; }
-.btn-verde .btn-texto { font-size: 1rem; font-weight: bold; }
+.btn-accion__texto {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icono-accion {
+  width: 1.45rem;
+  height: 1.45rem;
+}
 
-.btn-rojo {
-  background: var(--color-rojo);
+/* Metodos de pago: en el original se distinguen por una linea de color en
+   el borde inferior, no por el relleno del boton. */
+.btn-pago {
+  min-height: 3.1rem;
+  border-bottom: 3px solid transparent;
+  font-size: 0.9rem;
+}
+.btn-pago--efectivo { border-bottom-color: #43a047; }
+.btn-pago--tarjeta,
+.btn-pago--cheque { border-bottom-color: var(--color-primary); }
+
+/* F10 Pago. Verde propio, mas oscuro que --color-verde (que es un mint
+   claro pensado para etiquetas), para que el texto blanco tenga contraste
+   sobre un boton solido grande. */
+.btn-accion--pago {
+  background: #2e9e4f;
   color: #fff;
 }
-.btn-rojo:hover {
-  background: #c93338;
+.btn-accion--pago:hover:not(:disabled) {
+  background: #34b158;
+}
+.btn-accion--pago:disabled {
+  background: #2f3a33;
+  color: #7d8b81;
+}
+.btn-accion__tecla-grande {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.btn-accion--pago .btn-accion__texto {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.btn-accion--anular {
+  background: #c62828;
+  color: #fff;
+}
+.btn-accion--anular:hover:not(:disabled) {
+  background: #d63535;
 }
 
 .btn-span-2 {
@@ -707,6 +1044,156 @@ strong + .badge-nivel {
 
 .btn-placeholder {
   background: var(--color-panel);
+}
+
+/* --- Catalogo tactil ---
+   Ocupa la banda central del panel de acciones, que en el original esta
+   vacia con la marca de agua del logo. Se conserva porque un mostrador
+   tactil lo necesita (decision del 2026-09-07), aunque Aronium no lo
+   tenga. */
+.pos-retail__catalogo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem;
+  background: var(--color-bg);
+}
+/* En un panel estrecho las categorias no caben en varias filas sin comerse
+   la grilla, asi que aqui van en una sola fila que se desplaza en
+   horizontal, como una tira de pestañas. */
+.pos-retail__catalogo .categorias-tabs {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.35rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.pos-retail__catalogo .categoria-tab {
+  flex-shrink: 0;
+}
+.pos-retail__catalogo .grid-productos {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(2, 1fr);
+  align-content: start;
+  overflow-y: auto;
+}
+
+/* =========================================
+   Boton de los tres puntos + menu flotante de navegacion
+   Sustituyen al submenu "Administracion" que vivia en la barra lateral:
+   en la pantalla de caja no hay barra lateral (ver index.html), asi que
+   la entrada a Administracion es este boton de la esquina inferior
+   derecha, pedido por el desarrollador el 2026-09-08.
+   ========================================= */
+
+.btn-menu-flotante {
+  position: fixed;
+  right: 0;
+  bottom: var(--alto-statusbar);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Mismas medidas que una celda del panel de acciones, tomadas de las
+     mismas variables, para que encaje exactamente en su ultima casilla
+     (ver .btn-placeholder--menu en views/pos_retail.html) y no se
+     desalineen si luego se ajusta el tamaño del panel. */
+  width: calc(var(--ancho-acciones) / 4);
+  height: var(--alto-celda-accion);
+  padding: 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+  background: var(--color-panel);
+  cursor: pointer;
+}
+.btn-menu-flotante:hover,
+.btn-menu-flotante.activo {
+  background: var(--color-hover);
+}
+.btn-menu-flotante__puntos {
+  display: flex;
+  gap: 0.28rem;
+}
+.btn-menu-flotante__puntos span {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--color-rojo);
+}
+
+/* :not([hidden]) obligatorio: una regla de autor con "display" vence
+   SIEMPRE al [hidden] del navegador (ver la nota junto a
+   .pos-hospitalidad__cuenta). */
+.menu-flotante:not([hidden]) {
+  position: fixed;
+  right: 0.5rem;
+  bottom: calc(var(--alto-statusbar) + var(--alto-celda-accion) + 0.4rem);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 13.5rem;
+  padding: 0.3rem;
+  background: var(--color-panel-alto);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* #venta-subnav reutiliza esta clase y app.js lo oculta con [hidden]
+   cuando la seccion no es Venta. */
+.menu-flotante__grupo:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-flotante__titulo {
+  padding: 0.35rem 0.6rem 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.menu-flotante__sep {
+  height: 1px;
+  margin: 0.3rem 0;
+  background: var(--color-border);
+}
+
+/* Dentro del menu, los botones de navegacion son filas de menu y no items
+   de barra lateral: sin barra de acento lateral y con alto de fila. */
+.menu-flotante .seccion-btn,
+.menu-flotante .modo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 1.9rem;
+  height: auto;
+  padding: 0 0.6rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.87rem;
+  font-weight: 400;
+  text-align: left;
+}
+.menu-flotante .seccion-btn:hover,
+.menu-flotante .modo-btn:hover {
+  background: var(--color-hover);
+}
+.menu-flotante .seccion-btn.activo,
+.menu-flotante .modo-btn.activo {
+  background: var(--color-seleccion);
+  color: #fff;
+  font-weight: 600;
 }
 
 /* =========================================

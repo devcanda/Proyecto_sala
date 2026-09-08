@@ -1,35 +1,93 @@
 <!--
   views/pos_retail.html
   -----------------------
-  Layout inspirado en la pantalla de venta de Aronium: buscador arriba,
-  ticket amplio como tabla + grilla de productos (con buscador/categorias)
-  debajo para venta tactil, y a la derecha un panel de acciones con atajos
-  de teclado estilo F2-F12.
+  Calco de la pantalla de venta de Aronium (captura aportada por el
+  desarrollador el 2026-09-08). Estructura: barra superior con modos de
+  busqueda + buscador, ticket amplio con los totales anclados abajo a la
+  derecha, y a la derecha un panel de acciones de 4 columnas con atajos
+  F2-F12.
 
-  Botones REALMENTE conectados en este momento: el buscador (filtra la
-  grilla de abajo), las tarjetas de producto, las pestañas de categoria,
-  y "F10 Pago" (= #btn-cobrar, cobra la orden actual). El resto de botones
-  del panel de acciones (Eliminar, F3 Buscar, F4 Cantidad, F8 Nueva venta,
-  Cash/Card/Check, Descuento, etc.) son intencionalmente decorativos por
-  ahora: quedan para los proximos pasos de esta adaptacion (ver bitacora
-  del README, seccion 8).
+  DIFERENCIAS DELIBERADAS respecto al original, todas ya acordadas:
+  - Se conserva la grilla de productos tactil, que la Aronium real NO
+    tiene (decision del 2026-09-07: es mejor para un mostrador tactil).
+    Ocupa la banda central del panel derecho, que en el original esta
+    vacia con la marca de agua del logo de Aronium.
+  - No se reproduce el logo de Aronium: es marca de otra empresa.
+  - Los importes usan el formato del proyecto ($ con punto de miles y coma
+    decimal, ver bitacora del 2026-09-07), no el "0.00" del original.
+
+  Botones REALMENTE conectados: el buscador, las tarjetas de producto, las
+  pestañas de categoria y "F10 Pago" (= #btn-cobrar). El resto del panel
+  sigue siendo decorativo a proposito, pendiente de logica (ver backlog).
 -->
-<section class="pos-retail-aronium">
-  <header class="pos-retail-aronium__header">
-    <div class="buscador-wrapper">
-      <span class="icon-barcode" aria-hidden="true">⌗</span>
+<section class="pos-retail">
+  <!--
+    Hoja de iconos. Van como <symbol> + <use> para no repetir 15 bloques de
+    SVG en el marcado, y en linea (no como fuente de iconos ni CDN) porque
+    el modo Standalone tiene que funcionar sin internet.
+  -->
+  <svg class="hoja-iconos" aria-hidden="true">
+    <defs>
+      <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+      <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></symbol>
+      <symbol id="i-cantidad" viewBox="0 0 24 24"><path d="M3 7h13l-1.4 9.5a1.5 1.5 0 0 1-1.5 1.3H5.9a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M19 4v6M22 7h-6"/></symbol>
+      <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+      <symbol id="i-cajon" viewBox="0 0 24 24"><path d="M3 11h18v8H3z"/><path d="M5 11l1.6-5h10.8L19 11"/><path d="M10 15h4"/></symbol>
+      <symbol id="i-bolsa" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
+      <symbol id="i-descuento" viewBox="0 0 24 24"><path d="M19 5L5 19"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></symbol>
+      <symbol id="i-etiqueta" viewBox="0 0 24 24"><path d="M3 11.5V4h7.5L21 14.5 13.5 22z"/><circle cx="7.5" cy="7.5" r="1.4"/></symbol>
+      <symbol id="i-cliente" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
+      <symbol id="i-cliente-quitar" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M3 20a7 7 0 0 1 12.2-4.7"/><path d="M16 18h6"/></symbol>
+      <symbol id="i-guardar" viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M8 4v6h8V4M8 20v-6h8v6"/></symbol>
+      <symbol id="i-reembolso" viewBox="0 0 24 24"><path d="M3 8h13l-1.4 9.5a1.5 1.5 0 0 1-1.5 1.3H5.9a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M20 5l-3 3 3 3"/></symbol>
+      <symbol id="i-bloquear" viewBox="0 0 24 24"><path d="M6 11h12v9H6z"/><path d="M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11"/></symbol>
+      <symbol id="i-transferir" viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3"/></symbol>
+      <symbol id="i-papelera" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+      <symbol id="i-asterisco" viewBox="0 0 24 24"><path d="M12 4v16M5 8l14 8M19 8L5 16"/></symbol>
+      <symbol id="i-codigo-barras" viewBox="0 0 24 24"><path d="M4 5v14M7.5 5v14M10 5v14M14 5v14M17 5v14M20 5v14"/></symbol>
+      <symbol id="i-almohadilla" viewBox="0 0 24 24"><path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="pos-retail__topbar">
+    <!-- Modos de busqueda del original (por nombre, codigo de barras,
+         codigo interno, etiqueta). Decorativos por ahora: hoy el buscador
+         de abajo ya filtra por nombre y codigo a la vez. -->
+    <div class="pos-retail__modos" role="group" aria-label="Modo de busqueda (pendiente)">
+      <button type="button" class="btn-modo-busqueda activo" disabled title="Buscar por nombre (unico modo activo hoy)">
+        <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-asterisco" /></svg>
+      </button>
+      <button type="button" class="btn-modo-busqueda" disabled title="Buscar por codigo de barras (pendiente)">
+        <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-codigo-barras" /></svg>
+      </button>
+      <button type="button" class="btn-modo-busqueda" disabled title="Buscar por codigo interno (pendiente)">
+        <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-almohadilla" /></svg>
+      </button>
+      <button type="button" class="btn-modo-busqueda" disabled title="Buscar por etiqueta (pendiente)">
+        <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-etiqueta" /></svg>
+      </button>
+    </div>
+
+    <div class="pos-retail__buscador">
+      <svg class="icono-lupa" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><use href="#i-buscar" /></svg>
+      <!-- data-captura-barras: este es tambien el campo donde escribe el
+           lector de codigo de barras. Ver frontend/js/barcode.js. -->
       <input
         type="text"
         id="productos-buscador"
         class="buscador-productos"
-        placeholder="Buscar producto por nombre o codigo..."
+        placeholder="Buscar producto por nombre o escanear código"
         autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        data-captura-barras
       />
     </div>
   </header>
 
-  <div class="pos-retail-aronium__body">
-    <main class="pos-retail-aronium__main">
+  <div class="pos-retail__cuerpo">
+    <main class="pos-retail__ticket">
       <div class="tabla-ticket-scroll">
         <table class="tabla-ticket">
           <thead>
@@ -45,11 +103,12 @@
       </div>
 
       <p id="ticket-vacio" class="ticket-vacio-msg">
-        <strong>No hay artículos.</strong><br />
-        Agregue productos escaneando un código de barras o tocando uno de la grilla de abajo.
+        <strong>No hay artículos</strong>
+        Agregue productos a la orden escaneando un código de barras o tocando
+        uno del catálogo de la derecha.
       </p>
 
-      <div class="pos-retail-aronium__totales">
+      <div class="pos-retail__totales">
         <div class="totales-fila">
           <span>Subtotal</span>
           <span>$0,00</span>
@@ -63,98 +122,115 @@
           <span id="ticket-total">$0,00</span>
         </div>
       </div>
+    </main>
 
-      <div class="pos-retail-aronium__catalogo">
-        <h3>Productos</h3>
+    <aside class="pos-retail__acciones">
+      <div class="acciones-grid">
+        <button type="button" class="btn-accion" disabled>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-cerrar" /></svg>
+          <span class="btn-accion__texto">Eliminar</span>
+        </button>
+        <button type="button" class="btn-accion">
+          <span class="btn-accion__tecla">F3</span>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-buscar" /></svg>
+          <span class="btn-accion__texto">Buscar</span>
+        </button>
+        <button type="button" class="btn-accion">
+          <span class="btn-accion__tecla">F4</span>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-cantidad" /></svg>
+          <span class="btn-accion__texto">Cantidad</span>
+        </button>
+        <button type="button" class="btn-accion">
+          <span class="btn-accion__tecla">F8</span>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-mas" /></svg>
+          <span class="btn-accion__texto">Nueva venta</span>
+        </button>
+      </div>
+
+      <!-- Metodos de pago: en el original se distinguen por una linea de
+           color en el borde inferior, no por el fondo del boton. -->
+      <div class="acciones-pago">
+        <button type="button" class="btn-accion btn-pago btn-pago--efectivo">
+          <span class="btn-accion__tecla">F12</span>
+          <span class="btn-accion__texto">Cash</span>
+        </button>
+        <button type="button" class="btn-accion btn-pago btn-pago--tarjeta">
+          <span class="btn-accion__texto">Card</span>
+        </button>
+        <button type="button" class="btn-accion btn-pago btn-pago--cheque">
+          <span class="btn-accion__texto">Check</span>
+        </button>
+      </div>
+
+      <!-- Catalogo tactil. Ocupa la banda que en Aronium queda vacia con la
+           marca de agua del logo. -->
+      <div class="pos-retail__catalogo">
         <div id="categorias-tabs" class="categorias-tabs"></div>
         <div id="productos-grid" class="grid-productos"></div>
       </div>
-    </main>
 
-    <aside class="pos-retail-aronium__sidebar">
       <div class="acciones-grid">
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">✕</span>
-          <span class="btn-texto">Eliminar</span>
+        <button type="button" class="btn-accion">
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-cajon" /></svg>
+          <span class="btn-accion__texto">Cajón de din...</span>
         </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">F3 🔍</span>
-          <span class="btn-texto">Buscar</span>
-        </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">F4 #</span>
-          <span class="btn-texto">Cantidad</span>
-        </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">F8 +</span>
-          <span class="btn-texto">Nueva venta</span>
-        </button>
-
-        <button type="button" class="btn-accion btn-pago">
-          <span class="btn-icon">F12</span>
-          <span class="btn-texto">Cash</span>
-        </button>
-        <button type="button" class="btn-accion btn-pago">
-          <span class="btn-texto">Card</span>
-        </button>
-        <button type="button" class="btn-accion btn-pago">
-          <span class="btn-texto">Check</span>
-        </button>
-        <div class="btn-placeholder"></div>
-
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">💰</span>
-          <span class="btn-texto">Cajón de din...</span>
-        </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">?</span>
-          <span class="btn-texto">Service type</span>
+        <button type="button" class="btn-accion">
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bolsa" /></svg>
+          <span class="btn-accion__texto">Takeaway</span>
         </button>
         <div class="btn-placeholder"></div>
         <div class="btn-placeholder"></div>
 
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">F2 %</span>
-          <span class="btn-texto">Descuento</span>
+        <button type="button" class="btn-accion">
+          <span class="btn-accion__tecla">F2</span>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-descuento" /></svg>
+          <span class="btn-accion__texto">Descuento</span>
         </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">🏷️</span>
-          <span class="btn-texto">Price</span>
+        <button type="button" class="btn-accion" disabled>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-etiqueta" /></svg>
+          <span class="btn-accion__texto">Price</span>
         </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">👤</span>
-          <span class="btn-texto">Customer</span>
+        <button type="button" class="btn-accion">
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-cliente" /></svg>
+          <span class="btn-accion__texto">Customer</span>
         </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">⋯</span>
-          <span class="btn-texto">Mas</span>
-        </button>
-
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">F9 💾</span>
-          <span class="btn-texto">Guardar ve...</span>
-        </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">↩️</span>
-          <span class="btn-texto">Reembolso</span>
-        </button>
-        <button type="button" class="btn-accion btn-verde btn-span-2" id="btn-cobrar" disabled>
-          <span class="btn-icon">F10</span>
-          <span class="btn-texto">Pago</span>
+        <button type="button" class="btn-accion" disabled>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-cliente-quitar" /></svg>
+          <span class="btn-accion__texto">---</span>
         </button>
 
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">🔒</span>
-          <span class="btn-texto">Bloquear</span>
+        <button type="button" class="btn-accion">
+          <span class="btn-accion__tecla">F9</span>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-guardar" /></svg>
+          <span class="btn-accion__texto">Guardar ve...</span>
         </button>
-        <button type="button" class="btn-accion btn-gris">
-          <span class="btn-icon">↪️</span>
-          <span class="btn-texto">Transferir</span>
+        <button type="button" class="btn-accion">
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-reembolso" /></svg>
+          <span class="btn-accion__texto">Reembolso</span>
         </button>
-        <button type="button" class="btn-accion btn-rojo btn-span-2">
-          <span class="btn-icon">🗑️</span>
-          <span class="btn-texto">Anular orden</span>
+        <button type="button" class="btn-accion btn-accion--pago btn-span-2" id="btn-cobrar" disabled>
+          <span class="btn-accion__tecla-grande">F10</span>
+          <span class="btn-accion__texto">Pago</span>
         </button>
+
+        <button type="button" class="btn-accion">
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-bloquear" /></svg>
+          <span class="btn-accion__texto">Bloquear</span>
+        </button>
+        <button type="button" class="btn-accion">
+          <span class="btn-accion__tecla">F7</span>
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-transferir" /></svg>
+          <span class="btn-accion__texto">Transferir</span>
+        </button>
+        <button type="button" class="btn-accion btn-accion--anular">
+          <svg class="icono-accion" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-papelera" /></svg>
+          <span class="btn-accion__texto">Anular orden</span>
+        </button>
+        <!-- La ultima celda queda libre a proposito: ahi encaja el boton de
+             los tres puntos (#btn-admin-toggle), que vive en index.html
+             porque app.js lo enlaza al arrancar, antes de que esta vista
+             exista en el DOM. Ver .btn-menu-flotante en style.css. -->
+        <div class="btn-placeholder btn-placeholder--menu"></div>
       </div>
     </aside>
   </div>

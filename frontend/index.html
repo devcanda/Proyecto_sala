@@ -8,14 +8,24 @@
 </head>
 <body>
   <!--
-    Shell principal, inspirado en la separacion de Aronium entre caja
-    rapida (pantalla principal) y secciones de administracion propias.
-    La logica de ruteo real vive en js/app.js: decide que "seccion" de
-    nivel superior mostrar (venta / productos / inventario / alertas /
-    configuracion) y, dentro de "venta", que sub-modo (retail vs mesas),
-    inyectando el HTML de views/*.html dentro de #app-view. Productos,
-    Inventario, Alertas y Configuracion viven detras de un submenu
-    "Administracion" en la barra lateral (ver #admin-submenu).
+    Armazon principal. La logica de ruteo vive en js/app.js: decide que
+    "seccion" de nivel superior mostrar (venta / productos / inventario /
+    alertas / configuracion) y, dentro de "venta", que sub-modo (retail vs
+    hospitalidad), inyectando el HTML de views/*.html dentro de #app-view.
+
+    NAVEGACION (calco de Aronium, 2026-09-08). La pantalla de venta del
+    original no tiene barra lateral: es una caja a pantalla completa. Por
+    eso aqui la barra lateral se oculta en la seccion Venta (via CSS, con
+    body[data-seccion]) y la entrada a Administracion es el boton de tres
+    puntos de la esquina inferior derecha, que encaja en la ultima celda
+    del panel de acciones. En las secciones de administracion la barra
+    lateral si aparece, para saber donde se esta y poder volver.
+
+    Los botones de navegacion estan DUPLICADOS a proposito (barra lateral y
+    menu flotante): app.js los enlaza por clase y atributo de datos
+    (".seccion-btn[data-seccion]"), no por id, asi que ambas copias
+    funcionan. Tienen que vivir aqui, en el HTML estatico, porque init()
+    los enlaza una sola vez al arrancar, antes de inyectar ninguna vista.
 
     Regla de UX critica (documento maestro, seccion 5-B): #barcode-input
     debe mantener el foco SIEMPRE que no haya un dialogo modal abierto,
@@ -26,58 +36,84 @@
     <aside class="sidebar">
       <div class="sidebar__brand">Salsa <span>POS</span></div>
       <nav class="sidebar__nav">
-        <button data-seccion="venta" class="seccion-btn">Venta</button>
-        <button
-          type="button"
-          id="btn-admin-toggle"
-          class="seccion-btn seccion-btn--grupo"
-          aria-expanded="false"
-          aria-controls="admin-submenu"
-        >
-          Administración
-          <span class="flecha" aria-hidden="true">▾</span>
+        <button data-seccion="venta" class="seccion-btn">
+          <svg class="icono" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.6 2.2h1.9l1.5 7.2a.9.9 0 0 0 .9.7h5.5a.9.9 0 0 0 .9-.7l1-4.2H4.2" />
+            <circle cx="6.3" cy="13" r="1" />
+            <circle cx="11.6" cy="13" r="1" />
+          </svg>
+          Venta
         </button>
-        <div id="admin-submenu" class="sidebar__submenu" hidden>
-          <button data-seccion="productos" class="seccion-btn seccion-btn--sub">Productos</button>
-          <button data-seccion="inventario" class="seccion-btn seccion-btn--sub">Inventario</button>
-          <button data-seccion="alertas" class="seccion-btn seccion-btn--sub">Alertas</button>
-          <button data-seccion="configuracion" class="seccion-btn seccion-btn--sub">Configuración</button>
-        </div>
+        <span class="sidebar__titulo">Administración</span>
+        <button data-seccion="productos" class="seccion-btn seccion-btn--sub">Productos</button>
+        <button data-seccion="inventario" class="seccion-btn seccion-btn--sub">Inventario</button>
+        <button data-seccion="alertas" class="seccion-btn seccion-btn--sub">Alertas</button>
+        <button data-seccion="configuracion" class="seccion-btn seccion-btn--sub">Configuración</button>
       </nav>
-      <div class="topbar__status" id="connection-status">● conectando...</div>
     </aside>
 
     <div class="shell__contenido">
-      <header class="topbar" id="venta-subnav" hidden>
-        <nav class="topbar__nav">
-          <button data-modo="retail" class="modo-btn">Retail</button>
-          <button data-modo="hospitalidad" class="modo-btn">Hospitalidad</button>
-        </nav>
-      </header>
-
       <main id="app-view" class="app-view">
         <!-- Contenido inyectado dinamicamente por app.js -->
       </main>
     </div>
   </div>
 
+  <!--
+    Boton de los tres puntos. Encaja en la ultima celda del panel de
+    acciones de Retail (ver .btn-placeholder--menu en pos_retail.html):
+    esta fijo respecto a la ventana y toma sus medidas de las mismas
+    variables CSS que la reticula de ese panel, para que no se desalineen.
+    Vive aqui y no en la vista porque app.js lo enlaza al arrancar.
+  -->
+  <button
+    type="button"
+    id="btn-admin-toggle"
+    class="btn-menu-flotante"
+    aria-expanded="false"
+    aria-controls="admin-submenu"
+    aria-label="Menú de navegación"
+    title="Menú"
+  >
+    <span class="btn-menu-flotante__puntos" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </span>
+  </button>
+
+  <nav id="admin-submenu" class="menu-flotante" hidden>
+    <!-- #venta-subnav: app.js lo oculta con [hidden] cuando la seccion no
+         es Venta, asi que el grupo de modos solo aparece donde aplica. -->
+    <div id="venta-subnav" class="menu-flotante__grupo">
+      <span class="menu-flotante__titulo">Modo de venta</span>
+      <button data-modo="retail" class="modo-btn">Retail</button>
+      <button data-modo="hospitalidad" class="modo-btn">Hospitalidad</button>
+    </div>
+
+    <span class="menu-flotante__titulo">Administración</span>
+    <button data-seccion="productos" class="seccion-btn">Productos</button>
+    <button data-seccion="inventario" class="seccion-btn">Inventario</button>
+    <button data-seccion="alertas" class="seccion-btn">Alertas</button>
+    <button data-seccion="configuracion" class="seccion-btn">Configuración</button>
+
+    <span class="menu-flotante__sep" aria-hidden="true"></span>
+    <button data-seccion="venta" class="seccion-btn">Venta</button>
+  </nav>
+
+  <!--
+    Barra de estado inferior. Solo el indicador de conexion.
+
+    Aqui vivia tambien el campo del lector de codigo de barras
+    (#barcode-input). Se quito el 2026-09-08 por redundante: el lector
+    escribe ahora en el mismo buscador de cada pantalla, que es el que
+    lleva el atributo [data-captura-barras] (ver frontend/js/barcode.js).
+  -->
+  <footer class="statusbar">
+    <span class="topbar__status" id="connection-status">● conectando...</span>
+  </footer>
+
   <!-- Notificaciones no bloqueantes (ej. "Producto guardado correctamente").
        Ver mostrarToast() en app.js. -->
   <div id="toast" class="toast" hidden></div>
-
-  <!-- Campo oculto/persistente que captura la entrada del lector de barras.
-       Ver frontend/js/barcode.js para el detalle de captura y el soporte
-       de multiplicadores rapidos (ej. "5*7501234567890"). -->
-  <input
-    type="text"
-    id="barcode-input"
-    class="barcode-input"
-    autocomplete="off"
-    autocorrect="off"
-    autocapitalize="off"
-    spellcheck="false"
-    aria-label="Entrada de codigo de barras"
-  />
 
   <script src="js/api.js"></script>
   <script src="js/barcode.js"></script>

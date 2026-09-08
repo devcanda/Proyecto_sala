@@ -139,6 +139,19 @@ async function init() {
     btn.addEventListener("click", () => cambiarSeccion(btn.dataset.seccion));
   });
   document.getElementById("btn-admin-toggle").addEventListener("click", toggleAdminSubmenu);
+
+  // Cerrar el menu flotante al pulsar fuera o con Escape, como cualquier
+  // menu contextual de escritorio.
+  document.addEventListener("click", (e) => {
+    if (!state.adminSubmenuAbierto) return;
+    const menu = document.getElementById("admin-submenu");
+    const toggle = document.getElementById("btn-admin-toggle");
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    cerrarAdminSubmenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") cerrarAdminSubmenu();
+  });
   document.querySelectorAll(".modo-btn").forEach((btn) => {
     btn.addEventListener("click", () => cambiarModo(btn.dataset.modo));
   });
@@ -166,12 +179,24 @@ function marcarSeccionActiva() {
     btn.classList.toggle("activo", btn.dataset.seccion === state.seccion);
   });
 
+  // Deja la seccion actual en el <body> para que el CSS pueda reaccionar a
+  // ella sin consultar este estado. Se usa para ocultar la barra lateral en
+  // Venta: la pantalla de caja de Aronium es a pantalla completa, y la
+  // entrada a Administracion pasa a ser el boton de los tres puntos
+  // (ver el comentario de navegacion en index.html).
+  document.body.dataset.seccion = state.seccion;
+
   const esAdmin = SECCIONES_ADMIN.includes(state.seccion);
-  const abierto = state.adminSubmenuAbierto || esAdmin;
+  // El menu de los tres puntos es un desplegable de verdad: lo abre y lo
+  // cierra el usuario. Antes se forzaba abierto mientras se estuviera en
+  // una seccion de administracion, que era lo correcto cuando era un
+  // submenu fijo dentro de la barra lateral, pero como menu flotante lo
+  // dejaria pegado en pantalla tapando el contenido.
+  const abierto = state.adminSubmenuAbierto;
   document.getElementById("admin-submenu").hidden = !abierto;
 
   const toggle = document.getElementById("btn-admin-toggle");
-  toggle.classList.toggle("activo", esAdmin);
+  toggle.classList.toggle("activo", esAdmin || abierto);
   toggle.setAttribute("aria-expanded", abierto ? "true" : "false");
 }
 
@@ -180,7 +205,16 @@ function toggleAdminSubmenu() {
   marcarSeccionActiva();
 }
 
+function cerrarAdminSubmenu() {
+  if (!state.adminSubmenuAbierto) return;
+  state.adminSubmenuAbierto = false;
+  marcarSeccionActiva();
+}
+
 function cambiarSeccion(seccion) {
+  // Cerrar antes del corto-circuito: elegir la seccion en la que ya se
+  // esta tiene que cerrar el menu igual.
+  cerrarAdminSubmenu();
   if (seccion === state.seccion) return;
   state.seccion = seccion;
   renderSeccionActual();
@@ -206,6 +240,7 @@ function marcarModoActivo() {
 }
 
 function cambiarModo(modo) {
+  cerrarAdminSubmenu();
   if (modo === state.modo) return;
   state.modo = modo;
   state.ordenActual = null;
@@ -228,9 +263,13 @@ async function renderVistaVenta() {
     renderCategoriasTabs();
     renderProductosGrid();
     actualizarTicket();
-    const buscador = document.getElementById("productos-buscador");
-    if (buscador) buscador.addEventListener("input", () => renderProductosGrid());
   }
+
+  // Fuera de la rama de Retail: desde el 2026-09-08 Hospitalidad tambien
+  // trae este buscador (es el campo donde escribe el lector de codigo de
+  // barras), asi que el filtrado hay que enlazarlo en los dos modos.
+  const buscador = document.getElementById("productos-buscador");
+  if (buscador) buscador.addEventListener("input", () => renderProductosGrid());
 
   const btnCobrar = document.getElementById("btn-cobrar");
   if (btnCobrar) btnCobrar.addEventListener("click", cobrarOrdenActual);
@@ -274,8 +313,14 @@ function productosFiltrados() {
   const buscadorEl = document.getElementById("productos-buscador");
   const termino = buscadorEl ? buscadorEl.value.trim().toLowerCase() : "";
 
+  // El filtro por categoria solo vale donde hay pestañas para cambiarlo.
+  // En la cuenta de Hospitalidad no las hay, y sin esta guarda arrastraria
+  // la categoria que quedo elegida en Retail, escondiendo productos sin
+  // que se pueda deshacer desde esa pantalla.
+  const conCategorias = !!document.getElementById("categorias-tabs");
+
   return state.productos.filter((p) => {
-    if (state.filtroCategoria !== "todas" && p.grupo !== state.filtroCategoria) return false;
+    if (conCategorias && state.filtroCategoria !== "todas" && p.grupo !== state.filtroCategoria) return false;
     if (termino) {
       const enNombre = p.nombre.toLowerCase().includes(termino);
       const enCodigo = (p.codigo_barras || "").toLowerCase().includes(termino);
@@ -404,13 +449,65 @@ async function agregarItem(producto, cantidad) {
   }
 }
 
+/**
+ * Enter en el campo de captura (ver frontend/js/barcode.js).
+ *
+ * Desde el 2026-09-08 ese campo es el MISMO buscador de la pantalla, asi
+ * que un Enter puede venir de dos sitios muy distintos: del lector, que
+ * teclea un codigo exacto, o de una persona que estaba buscando por
+ * nombre. Por eso se intenta primero el codigo exacto y solo despues se
+ * interpreta como busqueda.
+ */
 async function onBarcodeScan({ codigo, cantidad }) {
   if (state.seccion !== "venta") return;
+
+  const termino = codigo.trim().toLowerCase();
+
+  // 1. Coincidencia exacta de codigo contra el catalogo ya cargado. Es el
+  //    caso del lector fisico, y se resuelve sin salir a la red.
+  const porCodigo = state.productos.find(
+    (p) =>
+      (p.codigo_barras || "").toLowerCase() === termino ||
+      (p.codigo || "").toLowerCase() === termino
+  );
+  if (porCodigo) {
+    await agregarItem(porCodigo, cantidad);
+    window.barcodeFocus.limpiar();
+    return;
+  }
+
+  // 2. Busqueda por nombre: si el filtro dejo un unico producto a la vista
+  //    no hay ambiguedad. Va ANTES de preguntarle al backend para que
+  //    teclear un nombre no dispare una peticion condenada al 404 (que
+  //    ademas ensucia la consola en el uso normal). No puede confundirse
+  //    con un escaneo: si el codigo leido no esta en el catalogo, el filtro
+  //    no deja ningun producto a la vista y este caso no se cumple.
+  const visibles = productosFiltrados();
+  if (visibles.length === 1) {
+    await agregarItem(visibles[0], cantidad);
+    window.barcodeFocus.limpiar();
+    return;
+  }
+
+  // 3. Ultimo recurso, contra el backend. Cubre un codigo que exista en la
+  //    base pero no en el catalogo cargado en memoria: por ejemplo, un
+  //    producto dado de alta desde otra caja en modo Red LAN.
   try {
     const producto = await api.buscarProductoPorCodigo(codigo);
     await agregarItem(producto, cantidad);
+    window.barcodeFocus.limpiar();
+    return;
   } catch (err) {
-    alert(`Codigo no reconocido: ${codigo}`);
+    /* No existe. Se avisa abajo. */
+  }
+
+  // 4. Con varios candidatos no se adivina: el operario sigue afinando la
+  //    busqueda y la grilla ya le esta mostrando las opciones. Solo se
+  //    avisa cuando no queda ninguna, y con un toast en vez del alert()
+  //    bloqueante de antes, que ahora saltaria ante cualquier busqueda sin
+  //    resultados y habria que descartarlo a mano.
+  if (visibles.length === 0) {
+    mostrarToast(`Codigo no reconocido: ${codigo}`, "error");
   }
 }
 
