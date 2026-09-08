@@ -1,0 +1,26 @@
+Instructivo para iniciar el proyecto (modo Standalone / SQLite — recomendado para 1 sola caja)
+1. Backend
+
+
+cd D:\git_antigravity\Proyecto_salsa
+.venv\Scripts\activate
+uvicorn backend.main:app --reload
+El .venv ya quedó preparado y probado; no hace falta reinstalar nada. La API queda en http://127.0.0.1:8000 (documentación interactiva en http://127.0.0.1:8000/docs). El archivo .env ya existe con DB_MODE=sqlite, que es el modo correcto para esto.
+
+2. Frontend (en otra terminal, dejando el backend corriendo)
+
+
+cd D:\git_antigravity\Proyecto_salsa
+npx http-server frontend -p 5173
+Abrir http://127.0.0.1:5173 en el navegador. No abrir index.html directamente con doble clic: el frontend carga las vistas por fetch y necesita servirse por HTTP.
+
+3. Para detener: Ctrl+C en cada terminal.
+
+Alternativa: modo Servidor/LAN con Docker (varias cajas en la misma red)
+Requiere tener Docker Desktop abierto primero.
+
+
+cd D:\git_antigravity\Proyecto_salsa
+copy .env.example .env    # completar POSTGRES_PASSWORD con una clave real
+docker compose up -d --build
+El backend queda expuesto en el puerto 8000 de la LAN.
