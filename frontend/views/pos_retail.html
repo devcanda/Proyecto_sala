@@ -50,39 +50,76 @@
   </svg>
 
   <header class="pos-retail__topbar">
-    <!-- Modos de busqueda del original (por nombre, codigo de barras,
-         codigo interno, etiqueta). Decorativos por ahora: hoy el buscador
-         de abajo ya filtra por nombre y codigo a la vez. -->
-    <div class="pos-retail__modos" role="group" aria-label="Modo de busqueda (pendiente)">
-      <button type="button" class="btn-modo-busqueda activo" disabled title="Buscar por nombre (unico modo activo hoy)">
+    <!--
+      Modos de busqueda (calco del 2026-09-08, segundo juego de capturas).
+      El modo elegido cambia tres cosas a la vez: contra que campo del
+      producto se busca, el texto de ayuda del campo, y el icono que lleva
+      el campo a la izquierda. La configuracion de cada modo vive en
+      MODOS_BUSQUEDA (app.js), que es quien lee estos data-*.
+    -->
+    <div class="pos-retail__modos" role="group" aria-label="Tipo de búsqueda">
+      <button
+        type="button"
+        class="btn-modo-busqueda"
+        data-modo-busqueda="todos"
+        data-tooltip="Buscar producto por nombre, código o código de barras"
+        aria-label="Buscar producto por nombre, código o código de barras"
+      >
         <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-asterisco" /></svg>
       </button>
-      <button type="button" class="btn-modo-busqueda" disabled title="Buscar por codigo de barras (pendiente)">
+      <button
+        type="button"
+        class="btn-modo-busqueda"
+        data-modo-busqueda="codigo-barras"
+        data-tooltip="Buscar producto por código de barras"
+        aria-label="Buscar producto por código de barras"
+      >
         <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-codigo-barras" /></svg>
       </button>
-      <button type="button" class="btn-modo-busqueda" disabled title="Buscar por codigo interno (pendiente)">
+      <button
+        type="button"
+        class="btn-modo-busqueda"
+        data-modo-busqueda="codigo"
+        data-tooltip="Buscar producto por código"
+        aria-label="Buscar producto por código"
+      >
         <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><use href="#i-almohadilla" /></svg>
       </button>
-      <button type="button" class="btn-modo-busqueda" disabled title="Buscar por etiqueta (pendiente)">
+      <button
+        type="button"
+        class="btn-modo-busqueda"
+        data-modo-busqueda="nombre"
+        data-tooltip="Buscar producto por nombre"
+        aria-label="Buscar producto por nombre"
+      >
         <svg class="icono-modo" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-etiqueta" /></svg>
       </button>
     </div>
 
     <div class="pos-retail__buscador">
-      <svg class="icono-lupa" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><use href="#i-buscar" /></svg>
+      <!-- El icono cambia con el modo: lupa en general, codigo de barras
+           cuando se busca por codigo de barras. Lo cambia app.js. -->
+      <svg class="icono-lupa" id="icono-buscador" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><use href="#i-buscar" /></svg>
       <!-- data-captura-barras: este es tambien el campo donde escribe el
            lector de codigo de barras. Ver frontend/js/barcode.js. -->
       <input
         type="text"
         id="productos-buscador"
         class="buscador-productos"
-        placeholder="Buscar producto por nombre o escanear código"
+        placeholder="Buscar producto por nombre, código o código de barras"
         autocomplete="off"
         autocorrect="off"
         autocapitalize="off"
         spellcheck="false"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded="false"
+        aria-controls="resultados-busqueda"
         data-captura-barras
       />
+      <!-- Desplegable de coincidencias. Se despliega bajo el campo y por
+           encima del ticket; lo llena renderResultadosBusqueda() en app.js. -->
+      <ul id="resultados-busqueda" class="resultados-busqueda" role="listbox" hidden></ul>
     </div>
   </header>
 
@@ -123,6 +160,24 @@
         </div>
       </div>
     </main>
+
+    <!--
+      Tirador para mover el borde entre el ticket y el panel de acciones
+      (calco del 2026-09-08, tercera captura). Se arrastra con el puntero;
+      doble clic devuelve el panel a su ancho de fabrica. La logica esta en
+      enlazarSeparadorAcciones() (app.js), que escribe el ancho en la
+      variable CSS --ancho-acciones.
+    -->
+    <div
+      id="separador-acciones"
+      class="pos-retail__separador"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Ajustar el ancho del panel de acciones"
+      title="Arrastra para ajustar el panel. Doble clic para restablecerlo."
+    >
+      <span class="pos-retail__agarre" aria-hidden="true"></span>
+    </div>
 
     <aside class="pos-retail__acciones">
       <div class="acciones-grid">

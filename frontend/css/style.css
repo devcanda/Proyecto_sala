@@ -796,6 +796,7 @@ strong + .badge-nivel {
 }
 
 .btn-modo-busqueda {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -808,18 +809,41 @@ strong + .badge-nivel {
   color: var(--color-text-muted);
   cursor: pointer;
 }
-.btn-modo-busqueda:disabled {
-  cursor: default;
+.btn-modo-busqueda:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
 }
 .btn-modo-busqueda.activo {
-  color: var(--color-text);
+  background: rgba(76, 178, 255, 0.14);
+  color: var(--color-primary-dark);
 }
 .icono-modo {
   width: 1.15rem;
   height: 1.15rem;
 }
 
+/* Ayuda emergente de cada modo. Se dibuja con CSS y no con el atributo
+   title del navegador, que tarda casi un segundo en aparecer y se pinta
+   con el estilo del sistema, fuera del tema oscuro. */
+.btn-modo-busqueda[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 60;
+  padding: 0.2rem 0.5rem;
+  background: var(--color-panel-alto);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .pos-retail__buscador {
+  /* Ancla del desplegable de resultados. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -827,6 +851,64 @@ strong + .badge-nivel {
   min-width: 0;
   padding-left: 0.35rem;
   color: var(--color-text-muted);
+}
+
+/* --- Desplegable de coincidencias ---
+   Cae bajo el campo y por encima del ticket. El desplazamiento vertical
+   compensa que el campo esta centrado dentro de una barra mas alta, para
+   que el desplegable arranque justo en el borde inferior de la barra. */
+.resultados-busqueda:not([hidden]) {
+  display: block;
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 30;
+  width: min(38rem, 60vw);
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* Filas densas, nombre a la izquierda y precio alineado a la derecha. */
+.resultado-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.16rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.resultado-item:hover {
+  background: var(--color-hover);
+}
+/* Fila seleccionada: azul solido, la que se agrega al pulsar Enter. */
+.resultado-item.activo {
+  background: var(--color-primary);
+  color: #fff;
+}
+.resultado-item__nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resultado-item__precio {
+  flex-shrink: 0;
+  /* Cifras de ancho fijo: los precios quedan alineados entre filas. */
+  font-variant-numeric: tabular-nums;
+}
+.resultados-busqueda__vacio {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  cursor: default;
 }
 .icono-lupa {
   width: 1.05rem;
@@ -915,6 +997,54 @@ strong + .badge-nivel {
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--color-text);
+}
+
+/* --- Tirador de ajuste del panel de acciones ---
+   Franja estrecha entre el ticket y el panel de acciones. Los puntos del
+   agarre se dibujan con un degradado radial repetido y no con un caracter
+   de fuente (⋮), para que salgan identicos en cualquier equipo sin
+   depender de que fuente resuelva ese glifo. */
+.pos-retail__separador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.75rem;
+  flex-shrink: 0;
+  background: var(--color-bg);
+  cursor: col-resize;
+  /* Sin esto, arrastrar selecciona de paso el texto del ticket. */
+  user-select: none;
+  touch-action: none;
+}
+/* Se ilumina al acercarse: es la pista de que el borde se puede mover. */
+.pos-retail__separador:hover {
+  background: var(--color-hover);
+}
+
+/* OJO con el tamaño: la primera version usaba puntos de 1.2px en una
+   franja de 3x22px y en gris apagado. Estaba en su sitio y funcionaba,
+   pero era tan tenue que no se veia, y se reporto como si el tirador no
+   existiera. Un control que se descubre mirando tiene que leerse. */
+.pos-retail__agarre {
+  width: 4px;
+  height: 2rem;
+  background-image: radial-gradient(circle, var(--color-text) 1.7px, transparent 1.9px);
+  background-size: 4px 8px;
+  background-repeat: repeat-y;
+  opacity: 0.7;
+}
+.pos-retail__separador:hover .pos-retail__agarre,
+body.redimensionando .pos-retail__agarre {
+  background-image: radial-gradient(circle, var(--color-primary-dark) 1.7px, transparent 1.9px);
+  opacity: 1;
+}
+
+/* Mientras dura el arrastre el cursor de ajuste manda en toda la ventana;
+   si no, cambia en cuanto el puntero se sale de la franja, que es de
+   apenas unos pixeles. */
+body.redimensionando {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* --- Panel de acciones --- */

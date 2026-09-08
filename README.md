@@ -882,6 +882,126 @@ posterior (ver Backlog).
   formulario de administración sigue sin verse interrumpido, y las 6
   pantallas navegan sin excepciones de JavaScript.
 
+### 2026-09-08 — Motor de búsqueda de la venta (modos + desplegable de resultados)
+
+- Segundo juego de capturas del desarrollador, esta vez sobre el buscador:
+  qué pasa al pulsar cada tipo de búsqueda y cómo se ve un producto
+  encontrado. Los cuatro botones de la barra superior, que hasta ahora eran
+  decorativos, quedaron funcionando.
+- **Los cuatro modos** (`MODOS_BUSQUEDA` en `app.js`, claves espejadas en
+  los `data-modo-busqueda` de `pos_retail.html`). Cada uno cambia tres
+  cosas a la vez:
+
+  | Modo | Busca en | Texto de ayuda |
+  |---|---|---|
+  | Todos (asterisco) | nombre, código y código de barras | Buscar producto por nombre, código o código de barras |
+  | Código de barras | `codigo_barras` | Buscar producto por código de barras |
+  | Código (almohadilla) | `codigo` | Buscar producto por código |
+  | Nombre (etiqueta) | `nombre` | Buscar producto por nombre |
+
+  Además del texto de ayuda, el modo cambia el icono que lleva el campo a
+  la izquierda: código de barras en ese modo, lupa en el resto. El modo
+  elegido se recuerda en `localStorage`, igual que el modo de venta.
+- **Ayudas emergentes** dibujadas con CSS y no con el atributo `title` del
+  navegador, que tarda casi un segundo en aparecer y se pinta con el estilo
+  del sistema, fuera del tema oscuro.
+- **Desplegable de resultados** (`#resultados-busqueda`): cae bajo el campo
+  y por encima del ticket, con el nombre a la izquierda y el precio
+  alineado a la derecha en cifras de ancho fijo. La primera fila viene
+  resaltada. Las flechas mueven la selección, Enter agrega la resaltada,
+  el clic agrega la fila pulsada y Escape lo cierra. Está topado a 40
+  filas: con un catálogo grande, repintar cientos de filas en cada tecleo
+  se nota y nadie recorre una lista así.
+- **El Enter pasa a resolverse por el desplegable.** `onBarcodeScan()`
+  gana un paso previo: si el desplegable está abierto, manda la fila
+  resaltada. Cubre los dos caminos con el mismo código, porque el lector
+  deja una única coincidencia ya resaltada y el teclado deja la que el
+  operario eligió con las flechas. Debajo siguen intactos los pasos
+  anteriores (código exacto en memoria, coincidencia única visible,
+  consulta al backend, aviso por toast), que son los que atienden a
+  Hospitalidad, que todavía no tiene desplegable.
+- **El multiplicador sigue valiendo con nombres.** Escribir `3*aceite`
+  busca "aceite" y agrega 3. Para lograrlo, `barcode.js` expone su parser
+  (`window.barcodeFocus.parsear`) y el buscador lo reutiliza, en vez de
+  duplicar la regla del `N*`.
+- **Guarda para Hospitalidad**: donde no hay selector de modo se busca
+  siempre por todos los campos. Sin eso, un modo restringido elegido en
+  Retail viajaría a la cuenta de una mesa y allí sería imposible cambiarlo.
+  Es la misma clase de guarda que ya se puso para el filtro por categoría.
+- La grilla táctil de productos filtra con el mismo criterio que el
+  desplegable, así que las dos superficies siempre coinciden. Se mantiene
+  aunque Aronium no la tenga, por la decisión del 2026-09-07.
+- **Verificación.** Contrato del DOM en verde. Prueba nueva del buscador,
+  10 comprobaciones: existen los cuatro modos con uno solo activo, cada uno
+  pone su texto de ayuda, el icono del campo cambia en modo código de
+  barras, buscar un nombre en modo código de barras no devuelve nada, el
+  mismo nombre en modo nombre sí y con la primera fila resaltada, las
+  flechas mueven la selección, Enter agrega y limpia y cierra, el clic
+  agrega, el escaneo por código sigue funcionando, y el modo sobrevive a
+  recargar. Se volvió a pasar la prueba de regresión anterior, con sus 9
+  comprobaciones en verde.
+
+### 2026-09-08 — Tirador para ajustar el ancho del panel de acciones
+
+- Tercera captura del desarrollador, señalando en rojo el agarre vertical
+  del borde entre el ticket y el panel de acciones: sirve para arrastrar
+  ese borde y dar más o menos ancho al panel.
+- **Cómo se implementó.** Una franja estrecha (`#separador-acciones`) entre
+  las dos zonas, con cursor de ajuste. Se arrastra con el puntero y el
+  doble clic devuelve el panel a su ancho de fábrica.
+- **El detalle que gobierna todo lo demás:** el ancho se escribe en la
+  variable CSS `--ancho-acciones` **de la raíz del documento**, no del
+  elemento de la vista. El botón de los tres puntos vive en `index.html`,
+  fuera de la vista, y calcula su tamaño con esa misma variable para
+  encajar en la última celda de la retícula. Si el ancho se guardara en la
+  vista, el botón no se enteraría y los dos se desalinearían en cuanto se
+  arrastrara el tirador. La prueba mide ese desajuste y lo exige por debajo
+  de 3px.
+- **Captura del puntero** (`setPointerCapture`) durante el arrastre: la
+  franja mide unos pocos píxeles y sin eso el gesto se pierde en cuanto el
+  cursor se sale de ella. La clase `redimensionando` en el `<body>` fija
+  además el cursor de ajuste en toda la ventana mientras dura el gesto.
+- **Topes**: mínimo 240px, y máximo el menor entre 640px y el 60% de la
+  ventana, para que ninguna de las dos zonas se coma a la otra. Al cambiar
+  el tamaño de la ventana se vuelve a aplicar el tope, pero sin regrabar el
+  valor: un recorte por ventana angosta no debe pisar la preferencia del
+  usuario, que vuelve al ensanchar.
+- El ancho se recuerda en `localStorage`. El doble clic **borra** la
+  propiedad en línea en vez de escribir un número, para que el valor por
+  defecto siga viviendo solo en la hoja de estilos y no haya que repetirlo
+  en el JavaScript.
+- Tras soltar el tirador el foco vuelve al buscador, para que el lector de
+  código de barras pueda disparar inmediatamente después.
+- Los puntos del agarre se dibujan con un degradado radial repetido y no
+  con el carácter `⋮`, para que salgan idénticos en cualquier equipo sin
+  depender de qué fuente resuelva ese glifo.
+- **Corrección el mismo día: el tirador no se veía.** La primera versión
+  usaba puntos de 1,2px en una franja de 3x22px y en gris apagado
+  (`--color-text-muted`). Estaba en su sitio y arrastraba bien, y las
+  pruebas automáticas pasaban, porque comprueban el comportamiento y no si
+  algo se distingue a simple vista. El desarrollador lo reportó como que el
+  botón no se había agregado. Se pasó a puntos de 1,7px en 4x28px con
+  `--color-text` al 70%, y la franja se ensanchó a 0,75rem con un fondo que
+  se ilumina al acercar el puntero. La lección para el resto del calco: un
+  control que se descubre mirando tiene que leerse sin buscarlo, y eso no
+  lo cubre ninguna prueba funcional.
+- **Sin teclado a propósito.** No se le puso `tabindex`: `barcode.js`
+  devuelve el foco al buscador cada 1,5s salvo que se esté escribiendo en
+  otro campo, así que un control enfocable que no es un campo de texto
+  perdería el foco solo. Se ajusta con el puntero.
+- **Verificación.** Contrato del DOM en verde. Prueba nueva del tirador, 8
+  comprobaciones: existe con el cursor correcto, arrastrar a un lado
+  ensancha y al otro estrecha, el botón de los tres puntos no se desalinea,
+  los topes se respetan por ambos extremos, el ancho sobrevive a recargar,
+  el doble clic restablece los 378px de fábrica, y el foco vuelve al
+  buscador. Las dos baterías de regresión anteriores (buscador y
+  lector/navegación) siguen en verde.
+- **Visto en la misma captura, pendiente de pedir**: la línea del ticket
+  trae un desplegable con una segunda línea de detalle (`#1 14:35 SKU:
+  SKU-033`), los impuestos aparecen calculados de verdad, "Guardar venta"
+  lleva un contador en rojo y el botón de cliente muestra un número. Nada
+  de eso se tocó en este paso.
+
 ## 9. Backlog / próximas fases
 
 - [ ] Autenticación y roles de usuario (cajero, administrador).
@@ -932,8 +1052,7 @@ posterior (ver Backlog).
       cambiar los interruptores deslizantes de Productos por casillas de
       verificación, y evaluar la barra de comandos por rejilla (Nuevo /
       Editar / Eliminar / Actualizar) una vez tengan lógica real.
-- [ ] Modos de búsqueda de la barra superior de Retail (por nombre, código
-      de barras, código interno, etiqueta): hoy son decorativos, el
-      buscador filtra por nombre y código a la vez.
+- [ ] Llevar el desplegable de resultados a la cuenta de Hospitalidad, que
+      hoy sólo tiene el campo de búsqueda (bitácora 2026-09-08).
 - [ ] Correr `scripts/verificar_contrato_dom.py` como hook de pre-commit,
       en vez de a mano.

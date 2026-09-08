@@ -117,6 +117,10 @@
       campo.dispatchEvent(new Event("input"));
     },
     enfocar,
+    // Se expone para que el buscador de app.js interprete el multiplicador
+    // igual que el lector: escribir "3*aceite" tiene que buscar "aceite" y
+    // agregar 3, no buscar la cadena literal "3*aceite".
+    parsear: parsearEntrada,
   };
 
   enfocar();

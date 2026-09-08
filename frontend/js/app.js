@@ -28,10 +28,46 @@ const state = {
   mesaActual: null,
   inventarioProductoId: null,
   filtroCategoria: "todas", // solo se usa en la grilla de Retail
+  modoBusqueda: localStorage.getItem("salsa_pos_modo_busqueda") || "todos",
+  resultadoActivo: 0, // fila resaltada del desplegable del buscador
   adminSubmenuAbierto: false, // Productos/Inventario/Alertas/Configuracion
 };
 
 const SECCIONES_ADMIN = ["productos", "inventario", "alertas", "configuracion"];
+
+/**
+ * Modos del buscador de la pantalla de venta (calco de Aronium,
+ * 2026-09-08). El modo elegido cambia tres cosas a la vez: contra que
+ * campos del producto se busca, el texto de ayuda del campo y el icono
+ * que lo acompaña. Las claves coinciden con los atributos
+ * data-modo-busqueda de views/pos_retail.html.
+ */
+const MODOS_BUSQUEDA = {
+  todos: {
+    campos: ["nombre", "codigo", "codigo_barras"],
+    placeholder: "Buscar producto por nombre, código o código de barras",
+    icono: "#i-buscar",
+  },
+  "codigo-barras": {
+    campos: ["codigo_barras"],
+    placeholder: "Buscar producto por código de barras",
+    icono: "#i-codigo-barras",
+  },
+  codigo: {
+    campos: ["codigo"],
+    placeholder: "Buscar producto por código",
+    icono: "#i-buscar",
+  },
+  nombre: {
+    campos: ["nombre"],
+    placeholder: "Buscar producto por nombre",
+    icono: "#i-buscar",
+  },
+};
+
+// Tope de filas del desplegable. Con un catalogo grande, repintar cientos
+// de filas en cada tecleo se nota, y nadie recorre una lista asi.
+const MAX_RESULTADOS = 40;
 
 const connectionStatusEl = document.getElementById("connection-status");
 const appViewEl = document.getElementById("app-view");
@@ -134,6 +170,11 @@ async function init() {
     console.error("No se pudieron cargar los productos:", err);
     state.productos = [];
   }
+
+  // Antes del primer render, para que el panel salga ya con el ancho que
+  // dejo el usuario en vez de saltar al ancho de fabrica y corregirse.
+  restaurarAnchoAcciones();
+  window.addEventListener("resize", restaurarAnchoAcciones);
 
   document.querySelectorAll(".seccion-btn[data-seccion]").forEach((btn) => {
     btn.addEventListener("click", () => cambiarSeccion(btn.dataset.seccion));
@@ -269,7 +310,37 @@ async function renderVistaVenta() {
   // trae este buscador (es el campo donde escribe el lector de codigo de
   // barras), asi que el filtrado hay que enlazarlo en los dos modos.
   const buscador = document.getElementById("productos-buscador");
-  if (buscador) buscador.addEventListener("input", () => renderProductosGrid());
+  if (buscador) {
+    buscador.addEventListener("input", () => {
+      state.resultadoActivo = 0;
+      renderResultadosBusqueda();
+      renderProductosGrid();
+    });
+
+    // Navegacion del desplegable. El Enter NO se maneja aqui a proposito:
+    // lo intercepta barcode.js y vuelve por el evento barcode:scan, para
+    // que el lector y el teclado recorran exactamente el mismo camino.
+    buscador.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        moverSeleccionResultados(1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        moverSeleccionResultados(-1);
+      } else if (e.key === "Escape") {
+        cerrarResultados();
+      }
+    });
+  }
+
+  // Selector de tipo de busqueda (solo existe en Retail).
+  document.querySelectorAll("[data-modo-busqueda]").forEach((btn) => {
+    btn.addEventListener("click", () => aplicarModoBusqueda(btn.dataset.modoBusqueda));
+  });
+  marcarModoBusquedaActivo();
+
+  // Tirador para ajustar el ancho del panel de acciones (solo en Retail).
+  enlazarSeparadorAcciones();
 
   const btnCobrar = document.getElementById("btn-cobrar");
   if (btnCobrar) btnCobrar.addEventListener("click", cobrarOrdenActual);
@@ -309,9 +380,116 @@ function renderCategoriasTabs() {
   });
 }
 
+// ---------- Ancho del panel de acciones (tirador de ajuste) ----------
+
+const ANCHO_ACCIONES_MIN = 240; // px; por debajo las 4 columnas no respiran
+const ANCHO_ACCIONES_MAX = 640;
+const CLAVE_ANCHO_ACCIONES = "salsa_pos_ancho_acciones";
+
+/**
+ * Fija el ancho del panel escribiendo --ancho-acciones en la RAIZ del
+ * documento. Tiene que ser la raiz y no la vista: el boton de los tres
+ * puntos vive en index.html, fuera de la vista, y calcula su tamaño con
+ * esa misma variable para encajar en la ultima celda de la reticula. Si el
+ * ancho se guardara en el elemento de la vista, el boton no se enteraria y
+ * los dos se desalinearian en cuanto se arrastrara el tirador.
+ */
+function aplicarAnchoAcciones(px, persistir = true) {
+  // El tope tambien depende de la ventana: en una pantalla angosta, 640px
+  // de panel se comerian el ticket.
+  const max = Math.min(ANCHO_ACCIONES_MAX, Math.round(window.innerWidth * 0.6));
+  const limitado = Math.min(max, Math.max(ANCHO_ACCIONES_MIN, Math.round(px)));
+  document.documentElement.style.setProperty("--ancho-acciones", `${limitado}px`);
+  if (persistir) localStorage.setItem(CLAVE_ANCHO_ACCIONES, String(limitado));
+  return limitado;
+}
+
+function restablecerAnchoAcciones() {
+  // Quitar la propiedad en linea devuelve el mando al valor por defecto de
+  // la hoja de estilos, sin tener que repetir aqui cuanto vale.
+  document.documentElement.style.removeProperty("--ancho-acciones");
+  localStorage.removeItem(CLAVE_ANCHO_ACCIONES);
+}
+
+/** Reaplica el ancho guardado (al arrancar y al cambiar el tamaño de la
+ *  ventana, donde el tope proporcional puede haber cambiado). No vuelve a
+ *  guardar: el recorte por ventana angosta no debe pisar la preferencia. */
+function restaurarAnchoAcciones() {
+  const guardado = parseInt(localStorage.getItem(CLAVE_ANCHO_ACCIONES), 10);
+  if (guardado) aplicarAnchoAcciones(guardado, false);
+}
+
+function enlazarSeparadorAcciones() {
+  const sep = document.getElementById("separador-acciones");
+  if (!sep) return;
+
+  sep.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    // Capturar el puntero: asi los eventos de movimiento siguen llegando
+    // aunque el cursor se salga de la franja, que mide unos pocos pixeles.
+    sep.setPointerCapture(e.pointerId);
+    document.body.classList.add("redimensionando");
+
+    const mover = (ev) => {
+      // El panel esta pegado al borde derecho de la ventana, asi que su
+      // ancho es justo la distancia del puntero a ese borde.
+      aplicarAnchoAcciones(window.innerWidth - ev.clientX);
+    };
+    const soltar = () => {
+      sep.releasePointerCapture(e.pointerId);
+      document.body.classList.remove("redimensionando");
+      sep.removeEventListener("pointermove", mover);
+      sep.removeEventListener("pointerup", soltar);
+      sep.removeEventListener("pointercancel", soltar);
+      // Devolver el foco al buscador: el lector tiene que poder disparar
+      // inmediatamente despues de ajustar el panel.
+      window.barcodeFocus.enfocar();
+    };
+
+    sep.addEventListener("pointermove", mover);
+    sep.addEventListener("pointerup", soltar);
+    sep.addEventListener("pointercancel", soltar);
+  });
+
+  sep.addEventListener("dblclick", () => {
+    restablecerAnchoAcciones();
+    window.barcodeFocus.enfocar();
+  });
+}
+
+// ---------- Buscador de la pantalla de venta ----------
+
+function configBusqueda() {
+  // Donde no hay selector de modo (la cuenta de Hospitalidad) se busca
+  // siempre por todos los campos: heredar el modo elegido en Retail
+  // dejaria una busqueda restringida imposible de cambiar desde ahi.
+  const haySelector = !!document.querySelector("[data-modo-busqueda]");
+  if (!haySelector) return MODOS_BUSQUEDA.todos;
+  return MODOS_BUSQUEDA[state.modoBusqueda] || MODOS_BUSQUEDA.todos;
+}
+
+/**
+ * Lo que hay que buscar de verdad. Se le quita el multiplicador
+ * ("3*aceite" -> "aceite", cantidad 3) reutilizando el parser de
+ * barcode.js, para que anteponer una cantidad no rompa la busqueda.
+ */
+function terminoBusqueda() {
+  const el = document.getElementById("productos-buscador");
+  const raw = el ? el.value.trim() : "";
+  if (!raw) return { termino: "", cantidad: 1 };
+  const { codigo, cantidad } = window.barcodeFocus.parsear(raw);
+  return { termino: codigo.toLowerCase(), cantidad };
+}
+
+function coincideBusqueda(producto, termino) {
+  if (!termino) return true;
+  return configBusqueda().campos.some((campo) =>
+    (producto[campo] || "").toLowerCase().includes(termino)
+  );
+}
+
 function productosFiltrados() {
-  const buscadorEl = document.getElementById("productos-buscador");
-  const termino = buscadorEl ? buscadorEl.value.trim().toLowerCase() : "";
+  const { termino } = terminoBusqueda();
 
   // El filtro por categoria solo vale donde hay pestañas para cambiarlo.
   // En la cuenta de Hospitalidad no las hay, y sin esta guarda arrastraria
@@ -321,13 +499,132 @@ function productosFiltrados() {
 
   return state.productos.filter((p) => {
     if (conCategorias && state.filtroCategoria !== "todas" && p.grupo !== state.filtroCategoria) return false;
-    if (termino) {
-      const enNombre = p.nombre.toLowerCase().includes(termino);
-      const enCodigo = (p.codigo_barras || "").toLowerCase().includes(termino);
-      if (!enNombre && !enCodigo) return false;
-    }
-    return true;
+    return coincideBusqueda(p, termino);
   });
+}
+
+function aplicarModoBusqueda(modo) {
+  if (!MODOS_BUSQUEDA[modo]) return;
+  state.modoBusqueda = modo;
+  localStorage.setItem("salsa_pos_modo_busqueda", modo);
+  marcarModoBusquedaActivo();
+  renderResultadosBusqueda();
+  renderProductosGrid();
+  // Cambiar de modo no debe costarle el foco al operario: el lector tiene
+  // que poder disparar inmediatamente despues.
+  window.barcodeFocus.enfocar();
+}
+
+function marcarModoBusquedaActivo() {
+  document.querySelectorAll("[data-modo-busqueda]").forEach((btn) => {
+    btn.classList.toggle("activo", btn.dataset.modoBusqueda === state.modoBusqueda);
+  });
+
+  const cfg = configBusqueda();
+  const campo = document.getElementById("productos-buscador");
+  if (campo) campo.placeholder = cfg.placeholder;
+
+  // El icono del campo es un <use> que apunta al sprite de la vista.
+  const icono = document.querySelector("#icono-buscador use");
+  if (icono) icono.setAttribute("href", cfg.icono);
+}
+
+function resultadosBusqueda() {
+  const { termino } = terminoBusqueda();
+  if (!termino) return [];
+  return state.productos
+    .filter((p) => coincideBusqueda(p, termino))
+    .slice(0, MAX_RESULTADOS);
+}
+
+function abrirResultados() {
+  const cont = document.getElementById("resultados-busqueda");
+  const campo = document.getElementById("productos-buscador");
+  if (cont) cont.hidden = false;
+  if (campo) campo.setAttribute("aria-expanded", "true");
+}
+
+function cerrarResultados() {
+  const cont = document.getElementById("resultados-busqueda");
+  const campo = document.getElementById("productos-buscador");
+  if (cont) cont.hidden = true;
+  if (campo) campo.setAttribute("aria-expanded", "false");
+  state.resultadoActivo = 0;
+}
+
+function renderResultadosBusqueda() {
+  const cont = document.getElementById("resultados-busqueda");
+  if (!cont) return; // Hospitalidad todavia no tiene desplegable.
+
+  const { termino } = terminoBusqueda();
+  if (!termino) {
+    cont.innerHTML = "";
+    cerrarResultados();
+    return;
+  }
+
+  const lista = resultadosBusqueda();
+  if (state.resultadoActivo >= lista.length) state.resultadoActivo = 0;
+  cont.innerHTML = "";
+
+  if (lista.length === 0) {
+    const vacio = document.createElement("li");
+    vacio.className = "resultados-busqueda__vacio";
+    vacio.textContent = "Sin coincidencias";
+    cont.appendChild(vacio);
+    abrirResultados();
+    return;
+  }
+
+  lista.forEach((producto, i) => {
+    const activo = i === state.resultadoActivo;
+    const li = document.createElement("li");
+    li.className = activo ? "resultado-item activo" : "resultado-item";
+    li.setAttribute("role", "option");
+    li.setAttribute("aria-selected", activo ? "true" : "false");
+
+    // textContent y no innerHTML: el nombre del producto lo escribe el
+    // usuario y no tiene por que acabar interpretandose como HTML.
+    const nombre = document.createElement("span");
+    nombre.className = "resultado-item__nombre";
+    nombre.textContent = producto.nombre;
+    const precio = document.createElement("span");
+    precio.className = "resultado-item__precio";
+    precio.textContent = formatearMoneda(producto.precio_venta);
+    li.append(nombre, precio);
+
+    // mousedown y no click: el click llega despues del blur, y para
+    // entonces barcode.js ya devolvio el foco al campo y la lista se
+    // repinto bajo el puntero.
+    li.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      agregarDesdeResultados(i);
+    });
+    cont.appendChild(li);
+  });
+
+  abrirResultados();
+}
+
+function moverSeleccionResultados(delta) {
+  const total = resultadosBusqueda().length;
+  if (!total) return;
+  state.resultadoActivo = (state.resultadoActivo + delta + total) % total;
+  renderResultadosBusqueda();
+  const activo = document.querySelector(".resultado-item.activo");
+  if (activo) activo.scrollIntoView({ block: "nearest" });
+}
+
+/** Agrega la fila indicada (o la resaltada). Devuelve si agrego algo. */
+async function agregarDesdeResultados(indice) {
+  const lista = resultadosBusqueda();
+  const producto = lista[indice === undefined ? state.resultadoActivo : indice];
+  if (!producto) return false;
+  const { cantidad } = terminoBusqueda();
+  await agregarItem(producto, cantidad);
+  window.barcodeFocus.limpiar();
+  cerrarResultados();
+  return true;
 }
 
 function renderProductosGrid() {
@@ -460,6 +757,16 @@ async function agregarItem(producto, cantidad) {
  */
 async function onBarcodeScan({ codigo, cantidad }) {
   if (state.seccion !== "venta") return;
+
+  // 0. Si el desplegable esta abierto, manda la fila resaltada: es lo que
+  //    el operario tiene delante seleccionado. Cubre tanto el teclado
+  //    (escribir, bajar con las flechas, Enter) como el lector, cuyo
+  //    codigo deja una unica coincidencia ya resaltada.
+  const desplegable = document.getElementById("resultados-busqueda");
+  if (desplegable && !desplegable.hidden) {
+    const agregado = await agregarDesdeResultados();
+    if (agregado) return;
+  }
 
   const termino = codigo.trim().toLowerCase();
 
